@@ -1,0 +1,249 @@
+### Variables
+@baseUrl = http://localhost:3001
+
+# =============================================================================
+# Health check
+# =============================================================================
+
+### Health
+GET {{baseUrl}}/health
+
+
+# =============================================================================
+# Render: simple text title card
+# =============================================================================
+
+### Render - title card
+POST {{baseUrl}}/render
+Content-Type: application/json
+
+{
+  "id": "title-card",
+  "duration": 6,
+  "width": 1920,
+  "height": 1080,
+  "background": "#0f0f0f",
+  "clips": [
+    {
+      "id": "headline",
+      "type": "text",
+      "content": "Welcome to HyperFrames",
+      "start": 0,
+      "duration": 4,
+      "trackIndex": 0,
+      "style": {
+        "fontSize": "96px",
+        "fontWeight": "700",
+        "color": "#ffffff",
+        "top": "380px",
+        "left": "0",
+        "width": "100%",
+        "textAlign": "center"
+      },
+      "animation": { "fadeIn": 0.5, "fadeOut": 0.5 }
+    },
+    {
+      "id": "sub",
+      "type": "text",
+      "content": "JSON-driven video rendering",
+      "start": 1.5,
+      "duration": 4.5,
+      "trackIndex": 1,
+      "style": {
+        "fontSize": "40px",
+        "color": "#aaaaaa",
+        "top": "510px",
+        "left": "0",
+        "width": "100%",
+        "textAlign": "center"
+      },
+      "animation": { "fadeIn": 0.4, "fadeOut": 0.4 }
+    }
+  ]
+}
+
+
+# =============================================================================
+# Render: multi-scene timeline (3 scenes, sequential)
+# =============================================================================
+
+### Render - multi-scene
+POST {{baseUrl}}/render
+Content-Type: application/json
+
+{
+  "id": "multi-scene",
+  "duration": 12,
+  "width": 1920,
+  "height": 1080,
+  "background": "#111827",
+  "clips": [
+    {
+      "id": "scene1-bg",
+      "type": "shape",
+      "start": 0,
+      "duration": 4,
+      "trackIndex": 0,
+      "style": {
+        "width": "1920px",
+        "height": "1080px",
+        "backgroundColor": "#1e3a5f"
+      }
+    },
+    {
+      "id": "scene1-title",
+      "type": "text",
+      "content": "Scene One",
+      "start": 0,
+      "duration": 4,
+      "trackIndex": 1,
+      "style": {
+        "fontSize": "80px",
+        "fontWeight": "bold",
+        "color": "#60a5fa",
+        "top": "460px",
+        "left": "0",
+        "width": "100%",
+        "textAlign": "center"
+      },
+      "animation": { "fadeIn": 0.4, "fadeOut": 0.4 }
+    },
+    {
+      "id": "scene2-bg",
+      "type": "shape",
+      "start": 4,
+      "duration": 4,
+      "trackIndex": 0,
+      "style": {
+        "width": "1920px",
+        "height": "1080px",
+        "backgroundColor": "#1a3a2a"
+      }
+    },
+    {
+      "id": "scene2-title",
+      "type": "text",
+      "content": "Scene Two",
+      "start": 4,
+      "duration": 4,
+      "trackIndex": 1,
+      "style": {
+        "fontSize": "80px",
+        "fontWeight": "bold",
+        "color": "#34d399",
+        "top": "460px",
+        "left": "0",
+        "width": "100%",
+        "textAlign": "center"
+      },
+      "animation": { "fadeIn": 0.4, "fadeOut": 0.4 }
+    },
+    {
+      "id": "scene3-bg",
+      "type": "shape",
+      "start": 8,
+      "duration": 4,
+      "trackIndex": 0,
+      "style": {
+        "width": "1920px",
+        "height": "1080px",
+        "backgroundColor": "#3a1a2a"
+      }
+    },
+    {
+      "id": "scene3-title",
+      "type": "text",
+      "content": "Scene Three",
+      "start": 8,
+      "duration": 4,
+      "trackIndex": 1,
+      "style": {
+        "fontSize": "80px",
+        "fontWeight": "bold",
+        "color": "#f472b6",
+        "top": "460px",
+        "left": "0",
+        "width": "100%",
+        "textAlign": "center"
+      },
+      "animation": { "fadeIn": 0.4, "fadeOut": 0.4 }
+    }
+  ]
+}
+
+
+# =============================================================================
+# Render: lower third overlay
+# =============================================================================
+
+### Render - lower third
+POST {{baseUrl}}/render
+Content-Type: application/json
+
+{
+  "id": "lower-third",
+  "duration": 8,
+  "width": 1920,
+  "height": 1080,
+  "background": "#000000",
+  "clips": [
+    {
+      "id": "bar",
+      "type": "shape",
+      "start": 1,
+      "duration": 6,
+      "trackIndex": 0,
+      "style": {
+        "top": "860px",
+        "left": "80px",
+        "width": "600px",
+        "height": "120px",
+        "backgroundColor": "#2563eb"
+      },
+      "animation": { "fadeIn": 0.3, "fadeOut": 0.3 }
+    },
+    {
+      "id": "name-label",
+      "type": "text",
+      "content": "Rajesh Kumar",
+      "start": 1.2,
+      "duration": 5.6,
+      "trackIndex": 1,
+      "style": {
+        "fontSize": "36px",
+        "fontWeight": "700",
+        "color": "#ffffff",
+        "top": "875px",
+        "left": "100px"
+      },
+      "animation": { "fadeIn": 0.3, "fadeOut": 0.3 }
+    },
+    {
+      "id": "role-label",
+      "type": "text",
+      "content": "Video Engineering Lead",
+      "start": 1.4,
+      "duration": 5.4,
+      "trackIndex": 2,
+      "style": {
+        "fontSize": "24px",
+        "color": "#bfdbfe",
+        "top": "920px",
+        "left": "100px"
+      },
+      "animation": { "fadeIn": 0.3, "fadeOut": 0.3 }
+    }
+  ]
+}
+
+
+# =============================================================================
+# Status and listing
+# =============================================================================
+
+### List all jobs
+GET {{baseUrl}}/jobs
+
+
+### Check status by job ID (replace with actual jobId from render response)
+GET {{baseUrl}}/status/title-card-1234567890

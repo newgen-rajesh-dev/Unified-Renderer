@@ -1,0 +1,114 @@
+{
+  "simple_text_animation": {
+    "id": "text-video",
+    "duration": 10,
+    "width": 1920,
+    "height": 1080,
+    "background": "#000",
+    "clips": [
+      {
+        "id": "title",
+        "type": "text",
+        "content": "Hello World",
+        "start": 0,
+        "duration": 5,
+        "trackIndex": 0,
+        "style": {
+          "fontSize": "96px",
+          "color": "#fff",
+          "textAlign": "center",
+          "padding": "100px"
+        }
+      },
+      {
+        "id": "subtitle",
+        "type": "text",
+        "content": "This is a subtitle",
+        "start": 5,
+        "duration": 5,
+        "trackIndex": 1,
+        "style": {
+          "fontSize": "48px",
+          "color": "#aaa",
+          "textAlign": "center",
+          "padding": "500px 100px"
+        }
+      }
+    ]
+  },
+
+  "multi_clip_timeline": {
+    "id": "multi-clip",
+    "duration": 15,
+    "width": 1920,
+    "height": 1080,
+    "background": "#1a1a1a",
+    "clips": [
+      {
+        "id": "intro",
+        "type": "text",
+        "content": "Scene 1: Introduction",
+        "start": 0,
+        "duration": 3,
+        "trackIndex": 0,
+        "style": {
+          "fontSize": "72px",
+          "color": "#00ff00",
+          "padding": "50px"
+        }
+      },
+      {
+        "id": "body",
+        "type": "text",
+        "content": "Scene 2: Main Content\nThis is the main body of text",
+        "start": 3,
+        "duration": 7,
+        "trackIndex": 0,
+        "style": {
+          "fontSize": "54px",
+          "color": "#ffffff",
+          "padding": "200px 50px",
+          "textAlign": "center"
+        }
+      },
+      {
+        "id": "outro",
+        "type": "text",
+        "content": "Scene 3: Outro",
+        "start": 10,
+        "duration": 5,
+        "trackIndex": 0,
+        "style": {
+          "fontSize": "64px",
+          "color": "#ff00ff",
+          "padding": "400px 50px",
+          "textAlign": "right"
+        }
+      }
+    ]
+  },
+
+  "with_audio": {
+    "id": "audio-video",
+    "duration": 10,
+    "width": 1920,
+    "height": 1080,
+    "background": "#003366",
+    "audio": "path/to/audio.mp3",
+    "clips": [
+      {
+        "id": "title",
+        "type": "text",
+        "content": "Audio-synced Video",
+        "start": 0,
+        "duration": 10,
+        "trackIndex": 0,
+        "style": {
+          "fontSize": "80px",
+          "color": "#fff",
+          "padding": "200px"
+        }
+      }
+    ]
+  }
+}
