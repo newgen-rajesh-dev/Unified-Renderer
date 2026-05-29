@@ -1,0 +1,23 @@
+{
+  "type": "L3L4",
+  "id": "l3l4-demo-001",
+  "intro": "https://example.com/intro.mp4",
+  "outro": "https://example.com/outro.mp4",
+  "overlayImage": "https://example.com/top-right-overlay.png",
+  "bgMusic": "https://example.com/background-music.mp3",
+  "background": "#000000",
+  "titleCard": {
+    "vidSrc": "https://example.com/title-card.mp4",
+    "titleText": "Title text"
+  },
+  "sections": [
+    {
+      "link": "https://example.com/section-1.mp4",
+      "ost": "On-screen text for video 1"
+    },
+    {
+      "link": "https://example.com/section-2.mp4",
+      "ost": "On-screen text for video 2"
+    }
+  ]
+}

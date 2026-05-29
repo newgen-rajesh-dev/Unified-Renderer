@@ -1,0 +1,98 @@
+/* Frame 1 */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+justify-content: flex-end;
+align-items: flex-start;
+padding: 122px 60px;
+gap: 10px;
+
+position: relative;
+width: 1920px;
+height: 1080px;
+
+background: #2C2C2C;
+
+
+/* Frame 2 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 0px;
+gap: 10px;
+
+width: 1145px;
+height: 226px;
+
+background: #3AA0FF;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Frame 5 */
+
+width: 1145px;
+height: 226px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Frame 3 */
+
+position: absolute;
+width: 63px;
+height: 226px;
+left: 0px;
+top: 0px;
+
+background: #C0FF4B;
+
+
+/* Frame 4 */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+justify-content: center;
+align-items: center;
+padding: 10px 15px;
+gap: 10px;
+
+position: absolute;
+width: 1072px;
+height: 226px;
+left: 73px;
+top: 0px;
+
+
+
+/* Charming way of Greeting so. */
+
+width: 1042px;
+height: 206px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 85px;
+line-height: 103px;
+
+color: #FFFFFF;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;

@@ -3,11 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npx --yes hyperframes@0.6.46 preview",
-    "check": "npx --yes hyperframes@0.6.46 lint && npx --yes hyperframes@0.6.46 validate && npx --yes hyperframes@0.6.46 inspect",
-    "render": "npx --yes hyperframes@0.6.46 render",
-    "publish": "npx --yes hyperframes@0.6.46 publish",
-    "server": "bun run server.js",
-    "server:node": "node server.js"
+    "dev": "bun run server.js",
+    "check": "bunx --bun hyperframes@0.6.46 lint && bunx --bun hyperframes@0.6.46 validate && bunx --bun hyperframes@0.6.46 inspect",
+    "render": "bunx --bun hyperframes@0.6.46 render",
+    "publish": "bunx --bun hyperframes@0.6.46 publish"
+  },
+  "dependencies": {
+    "uploadthing": "^7.7.4"
   }
 }
