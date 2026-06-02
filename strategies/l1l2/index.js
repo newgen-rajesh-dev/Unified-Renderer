@@ -1,6 +1,10 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { probeMediaDuration, reencodeForSeek } from "../../common/media.js";
+import {
+  probeMediaDuration,
+  reencodeForSeek,
+  stretchVideoToDuration,
+} from "../../common/media.js";
 import { OST_ANIMATION } from "../../common/ost-style.js";
 
 const ENABLE_TOP_RIGHT_OVERLAY = true;
@@ -44,11 +48,12 @@ function parseL1L2(payload) {
 
   const parsed = sections.map((section, idx) => {
     if (!section.link)
-      throw new Error(`L1L2 section ${idx} is missing "link" (image)`);
+      throw new Error(`L1L2 section ${idx} is missing "link"`);
     if (!section.audio)
       throw new Error(`L1L2 section ${idx} is missing "audio"`);
+    const type = section.type === "clip" ? "clip" : "image";
     const ost = typeof section.ost === "string" ? section.ost.trim() : "";
-    return { idx, link: section.link, audio: section.audio, ost };
+    return { idx, type, link: section.link, audio: section.audio, ost };
   });
   const speedrun = isSpeedrun(payload);
 
@@ -147,20 +152,25 @@ export async function prepareAssets(
   const sections = [];
   for (const s of l1l2.sections) {
     // Image (no probing needed — shown for audio duration)
-    let imgExt = ".jpg";
+    let imgExt = s.type === "clip" ? ".mp4" : ".jpg";
     try {
       const ext = path.extname(new URL(s.link).pathname).toLowerCase();
       if (ext) imgExt = ext;
     } catch (_) {}
-    const imgRel = `assets/section-${s.idx}-image${imgExt}`;
+    const imgRel =
+      s.type === "clip"
+        ? `assets/section-${s.idx}-clip-source${imgExt}`
+        : `assets/section-${s.idx}-image${imgExt}`;
     const imgAbs = path.join(jobDir, imgRel);
     console.log(
-      `[SectionImgDownloadStarted][${jobId}] Resolving section-${s.idx} image`,
+      s.type === "clip"
+        ? `[SectionClipDownloadStarted][${jobId}] Resolving section-${s.idx} clip video`
+        : `[SectionImgDownloadStarted][${jobId}] Resolving section-${s.idx} image`,
     );
     await assetCache.materialize(s.link, imgAbs, {
-      fallbackExt: ".jpg",
+      fallbackExt: s.type === "clip" ? ".mp4" : ".jpg",
       jobId,
-      label: `section-${s.idx}-image`,
+      label: s.type === "clip" ? `section-${s.idx}-clip` : `section-${s.idx}-image`,
     });
 
     // Narration audio — probe determines scene duration (no reencode for audio)
@@ -185,7 +195,32 @@ export async function prepareAssets(
       `[SectionAudioProbeCompleted][${jobId}] Probed section-${s.idx} audio=${rawDuration.toFixed(3)}s → truncated=${duration}s`,
     );
 
-    sections.push({ idx: s.idx, imgRel, audioRel, duration, ost: s.ost });
+    if (s.type === "clip") {
+      const rawClipDuration = await probeMediaDuration(imgAbs);
+      const clipDuration = truncateDuration(rawClipDuration);
+      const clipRel = `assets/section-${s.idx}-clip.mp4`;
+      const clipAbs = path.join(jobDir, clipRel);
+      console.log(
+        `[SectionClipProbeCompleted][${jobId}] Probed section-${s.idx} clip=${rawClipDuration.toFixed(3)}s -> truncated=${clipDuration}s`,
+      );
+
+      if (clipDuration < duration) {
+        await stretchVideoToDuration(imgAbs, clipAbs, {
+          sourceDuration: clipDuration,
+          targetDuration: duration,
+          jobId,
+          label: `section-${s.idx}-clip`,
+        });
+      } else {
+        await fs.copyFile(imgAbs, clipAbs);
+        await reencodeForSeek(clipAbs, { jobId, label: `section-${s.idx}-clip` });
+      }
+
+      sections.push({ idx: s.idx, type: "clip", clipRel, audioRel, duration, ost: s.ost });
+      continue;
+    }
+
+    sections.push({ idx: s.idx, type: "image", imgRel, audioRel, duration, ost: s.ost });
   }
 
   // --- Outro ---
@@ -284,20 +319,32 @@ export async function prepareAssets(
   }
 
   for (const section of sections) {
-    const panTiming = calculateImagePanTiming(section.duration);
-
-    // Image enters from the left, holds, then exits by reversing the same move.
-    clips.push({
-      id: `l1l2-section-${section.idx}-image`,
-      type: "image",
-      content: section.imgRel,
-      start: cursor,
-      duration: section.duration,
-      trackIndex: 100,
-      animation: { fadeIn: 0, fadeOut: 0 },
-      pan: true,
-      ...panTiming,
-    });
+    if (section.type === "clip") {
+      clips.push({
+        id: `l1l2-section-${section.idx}-clip`,
+        type: "video",
+        content: section.clipRel,
+        start: cursor,
+        duration: section.duration,
+        mediaDuration: section.duration,
+        trackIndex: 100,
+        animation: { fadeIn: 0, fadeOut: 0 },
+        hasAudio: false,
+      });
+    } else {
+      const panTiming = calculateImagePanTiming(section.duration);
+      clips.push({
+        id: `l1l2-section-${section.idx}-image`,
+        type: "image",
+        content: section.imgRel,
+        start: cursor,
+        duration: section.duration,
+        trackIndex: 100,
+        animation: { fadeIn: 0, fadeOut: 0 },
+        pan: true,
+        ...panTiming,
+      });
+    }
     // Narration audio
     clips.push({
       id: `l1l2-section-${section.idx}-audio`,

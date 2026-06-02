@@ -27,6 +27,7 @@ function buildClipHtml(clip) {
     content = "",
     style = {},
     mediaDuration = null,
+    hasAudio = true,
   } = clip;
 
   const baseAttrsArr = [
@@ -79,7 +80,8 @@ function buildClipHtml(clip) {
   if (type === "video") {
     const defaultStyle =
       "position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;";
-    return `<video ${baseAttrs} src="${content}" style="${defaultStyle} ${customStyle}" playsinline preload="auto" data-has-audio="true" data-volume="1"></video>`;
+    const audioAttrs = hasAudio ? `data-has-audio="true" data-volume="1"` : "muted";
+    return `<video ${baseAttrs} src="${content}" style="${defaultStyle} ${customStyle}" playsinline preload="auto" ${audioAttrs}></video>`;
   }
   if (type === "audio")
     return `<audio ${baseAttrs} src="${content}" preload="auto" data-volume="1"></audio>`;

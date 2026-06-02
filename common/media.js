@@ -165,6 +165,44 @@ export async function reencodeForSeek(inputPath, { jobId = 'unknown', label = 'v
   console.log(`[ReencodeCompleted][${jobId}] Re-encoded ${label} → dense keyframes applied`);
 }
 
+export async function stretchVideoToDuration(
+  inputPath,
+  outputPath,
+  { sourceDuration, targetDuration, jobId = 'unknown', label = 'clip' } = {},
+) {
+  if (!sourceDuration || !targetDuration || sourceDuration <= 0 || targetDuration <= 0) {
+    throw new Error(`Invalid stretch durations for ${label}`);
+  }
+
+  const factor = targetDuration / sourceDuration;
+  const args = [
+    '-y',
+    '-i', inputPath,
+    '-filter:v', `setpts=${factor.toFixed(6)}*PTS`,
+    '-an',
+    '-r', '30',
+    '-c:v', 'libx264',
+    '-preset', process.env.FFMPEG_PRESET || 'veryfast',
+    '-pix_fmt', 'yuv420p',
+    '-movflags', '+faststart',
+    outputPath,
+  ];
+
+  await new Promise((resolve, reject) => {
+    console.log(`[ClipStretchStarted][${jobId}] Slowing ${label} from ${sourceDuration.toFixed(3)}s to ${targetDuration.toFixed(3)}s`);
+    const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stderr = '';
+    proc.stderr.on('data', (d) => { stderr += d.toString(); });
+    proc.on('error', (err) => reject(new Error(`ffmpeg clip stretch spawn failed: ${err.message}`)));
+    proc.on('close', (code) => {
+      if (code === 0) return resolve();
+      reject(new Error(`ffmpeg clip stretch failed (code ${code}): ${stderr.slice(-600)}`));
+    });
+  });
+
+  console.log(`[ClipStretchCompleted][${jobId}] Slowed ${label} to match narration audio`);
+}
+
 export async function applyBackgroundMusic({
   inputVideoPath,
   musicPath,
