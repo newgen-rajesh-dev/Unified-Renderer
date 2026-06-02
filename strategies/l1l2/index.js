@@ -1,12 +1,40 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { probeMediaDuration, reencodeForSeek } from "../../common/media.js";
+import { OST_ANIMATION } from "../../common/ost-style.js";
 
-const OST_ANIMATION = { fadeIn: 0.5, fadeOut: 0.5 };
 const ENABLE_TOP_RIGHT_OVERLAY = true;
+const IMAGE_PAN_ENTER_RATIO = 0.28;
+const IMAGE_PAN_MIN_HOLD_RATIO = 0.2;
 
 function truncateDuration(duration) {
   return Math.floor(duration * 100) / 100;
+}
+
+function clampDuration(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function calculateImagePanTiming(sceneDuration) {
+  if (sceneDuration <= 0) {
+    return { panEnterDuration: 0, panExitDuration: 0 };
+  }
+
+  const minHold = Math.min(0.4, sceneDuration * IMAGE_PAN_MIN_HOLD_RATIO);
+  const maxSingleMoveDuration = Math.max(0, (sceneDuration - minHold) / 2);
+  const panDuration = Math.min(
+    maxSingleMoveDuration,
+    clampDuration(sceneDuration * IMAGE_PAN_ENTER_RATIO, 0.45, 2.4),
+  );
+
+  return {
+    panEnterDuration: truncateDuration(panDuration),
+    panExitDuration: truncateDuration(panDuration),
+  };
+}
+
+function isSpeedrun(payload) {
+  return payload?.speedrun === true;
 }
 
 function parseL1L2(payload) {
@@ -22,18 +50,20 @@ function parseL1L2(payload) {
     const ost = typeof section.ost === "string" ? section.ost.trim() : "";
     return { idx, link: section.link, audio: section.audio, ost };
   });
+  const speedrun = isSpeedrun(payload);
 
   return {
     _kind: "L1L2",
     id: payload.id || `l1l2-${Date.now()}`,
+    speedrun,
     width: 1920,
     height: 1080,
     background: payload.background || "#000000",
-    overlayImage: payload.overlayImage ? String(payload.overlayImage) : null,
-    bgMusic: payload.bgMusic ? String(payload.bgMusic) : null,
-    intro: payload.intro ? String(payload.intro) : null,
-    outro: payload.outro ? String(payload.outro) : null,
-    titleCard: payload.titleCard
+    overlayImage: !speedrun && payload.overlayImage ? String(payload.overlayImage) : null,
+    bgMusic: !speedrun && payload.bgMusic ? String(payload.bgMusic) : null,
+    intro: !speedrun && payload.intro ? String(payload.intro) : null,
+    outro: !speedrun && payload.outro ? String(payload.outro) : null,
+    titleCard: !speedrun && payload.titleCard
       ? {
           vidSrc: payload.titleCard.vidSrc ? String(payload.titleCard.vidSrc) : "",
           titleText: payload.titleCard.titleText ? String(payload.titleCard.titleText) : "",
@@ -254,7 +284,9 @@ export async function prepareAssets(
   }
 
   for (const section of sections) {
-    // Image — object-fit: cover fills the canvas, no black bars
+    const panTiming = calculateImagePanTiming(section.duration);
+
+    // Image enters from the left, holds, then exits by reversing the same move.
     clips.push({
       id: `l1l2-section-${section.idx}-image`,
       type: "image",
@@ -263,6 +295,8 @@ export async function prepareAssets(
       duration: section.duration,
       trackIndex: 100,
       animation: { fadeIn: 0, fadeOut: 0 },
+      pan: true,
+      ...panTiming,
     });
     // Narration audio
     clips.push({

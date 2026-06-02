@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { probeMediaDuration, reencodeForSeek } from "../../common/media.js";
+import { buildOstClipHtml, OST_ANIMATION } from "../../common/ost-style.js";
 
 function camelToKebab(str) {
   return str.replace(/([A-Z])/g, "-$1").toLowerCase();
@@ -10,6 +11,10 @@ function styleObjectToString(style) {
   return Object.entries(style)
     .map(([key, value]) => `${camelToKebab(key)}: ${value}`)
     .join("; ");
+}
+
+function isSpeedrun(payload) {
+  return payload?.speedrun === true;
 }
 
 function buildClipHtml(clip) {
@@ -63,7 +68,7 @@ function buildClipHtml(clip) {
   }
   if (type === "image") {
     const defaultStyle =
-      "position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;";
+      "position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; will-change: transform;";
     return `<img ${baseAttrs} src="${content}" style="${defaultStyle} ${customStyle}" alt="" />`;
   }
   if (type === "topRightImage") {
@@ -79,70 +84,7 @@ function buildClipHtml(clip) {
   if (type === "audio")
     return `<audio ${baseAttrs} src="${content}" preload="auto" data-volume="1"></audio>`;
   if (type === "ost") {
-    const wrapperStyle = [
-      "position: absolute",
-      "inset: 0",
-      "display: flex",
-      "flex-direction: column",
-      "justify-content: flex-end",
-      "align-items: flex-start",
-      "padding: 122px 60px",
-      "gap: 10px",
-      "pointer-events: none",
-    ].join("; ");
-    const chipOuterStyle = [
-      "position: relative",
-      "width: 1145px",
-      "height: 226px",
-      "background: #3AA0FF",
-      "display: flex",
-      "flex-direction: row",
-      "justify-content: center",
-      "align-items: center",
-      "padding: 0",
-      "gap: 10px",
-      "flex: none",
-      "order: 0",
-      "flex-grow: 0",
-      "transform: translateY(60px)",
-      "opacity: 0",
-      "will-change: transform, opacity",
-    ].join("; ");
-    const accentStyle = [
-      "position: absolute",
-      "width: 63px",
-      "height: 226px",
-      "left: 0",
-      "top: 0",
-      "background: #C0FF4B",
-    ].join("; ");
-    const textWrapStyle = [
-      "position: absolute",
-      "width: 1072px",
-      "height: 226px",
-      "left: 73px",
-      "top: 0",
-      "display: flex",
-      "flex-direction: column",
-      "justify-content: center",
-      "align-items: center",
-      "padding: 10px 15px",
-      "gap: 10px",
-    ].join("; ");
-    const textStyle = [
-      "width: 1042px",
-      "height: 206px",
-      "color: #FFFFFF",
-      "font-family: 'Inter', 'Geist', sans-serif",
-      "font-style: normal",
-      "font-weight: 600",
-      "font-size: 75px",
-      "line-height: 103px",
-      "display: flex",
-      "align-items: center",
-      "overflow-wrap: break-word",
-    ].join("; ");
-    return `<div ${baseAttrs} style="${wrapperStyle}"><div id="${clipId}-chip" style="${chipOuterStyle}"><div style="${accentStyle}"></div><div style="${textWrapStyle}"><div style="${textStyle}">${content}</div></div></div></div>`;
+    return buildOstClipHtml({ baseAttrs, clipId, content });
   }
   if (type === "shape") {
     const defaultStyle = "position: absolute; top: 0; left: 0;";
@@ -155,9 +97,59 @@ function buildAnimationScript(clips, compositionId) {
   const tweens = clips
     .filter((c) => c.type !== "audio")
     .map((clip) => {
-      const { id, type, start = 0, duration = 5, animation = null } = clip;
+      const {
+        id,
+        type,
+        start = 0,
+        duration = 5,
+        animation = null,
+        pan = false,
+        panDuration = null,
+        panEnterDuration = null,
+        panExitDuration = null,
+      } = clip;
       const fadeIn = animation?.fadeIn ?? 0.3;
       const fadeOut = animation?.fadeOut ?? 0.3;
+
+      if (type === "image" && pan) {
+        if (panEnterDuration != null || panExitDuration != null) {
+          // L1/L2 still-image scenes enter from the left, hold, then reverse that same move.
+          // Scale 1.25 gives enough overflow for a clear -10% entrance without black bars.
+          const enterDur = Math.min(duration, truncateDuration(Math.max(0, panEnterDuration ?? 0)));
+          const exitDur = Math.min(
+            Math.max(0, duration - enterDur),
+            truncateDuration(Math.max(0, panExitDuration ?? 0)),
+          );
+          const exitStart = truncateDuration(start + duration - exitDur);
+          return [
+            `  tl.set("#${id}", { opacity: 1 }, ${start});`,
+            `  tl.fromTo("#${id}", { x: "-10%", scale: 1.25 }, { x: "0%", scale: 1.25, duration: ${enterDur}, ease: "power2.out" }, ${start});`,
+            `  tl.to("#${id}", { x: "-10%", scale: 1.25, duration: ${exitDur}, ease: "power2.in" }, ${exitStart});`,
+            `  tl.set("#${id}", { opacity: 0 }, ${start + duration});`,
+          ].join("\n");
+        }
+
+        if (panDuration != null) {
+          // Continuous still-image pan across a bounded duration.
+          // Scale 1.1 gives 5% overflow on each side, so ±4% avoids black bars.
+          const moveDur = Math.min(duration, truncateDuration(Math.max(0, panDuration)));
+          const panStart = truncateDuration(start + (duration - moveDur) / 2);
+          return [
+            `  tl.set("#${id}", { opacity: 1 }, ${start});`,
+            `  tl.fromTo("#${id}", { x: "4%", scale: 1.1 }, { x: "-4%", scale: 1.1, duration: ${moveDur}, ease: "none" }, ${panStart});`,
+            `  tl.set("#${id}", { opacity: 0 }, ${start + duration});`,
+          ].join("\n");
+        }
+
+        // Default image pan: quick enter from right, hold, exit left.
+        const moveDur = Math.min(0.6, truncateDuration(duration * 0.25));
+        return [
+          `  tl.set("#${id}", { opacity: 1 }, ${start});`,
+          `  tl.fromTo("#${id}", { x: "-4%", scale: 1.1 }, { x: "0%", scale: 1.1, duration: ${moveDur}, ease: "power2.out" }, ${start});`,
+          `  tl.fromTo("#${id}", { x: "0%", scale: 1.1 }, { x: "-4%", scale: 1.1, duration: ${moveDur}, ease: "power2.in" }, ${truncateDuration(start + duration - moveDur)});`,
+          `  tl.set("#${id}", { opacity: 0 }, ${start + duration});`,
+        ].join("\n");
+      }
 
       if (type === "ost") {
         const chipSel = `#${id}-chip`;
@@ -225,16 +217,18 @@ function parseL3L4(payload) {
     const ost = typeof section.ost === "string" ? section.ost.trim() : "";
     return { idx, partName, link: section.link, ost };
   });
+  const speedrun = isSpeedrun(payload);
 
   return {
     _kind: "L3L4",
     id: payload.id || `l3l4-${Date.now()}`,
+    speedrun,
     width: 1920,
     height: 1080,
     background: payload.background || "#000000",
-    overlayImage: payload.overlayImage ? String(payload.overlayImage) : null,
-    bgMusic: payload.bgMusic ? String(payload.bgMusic) : null,
-    titleCard: payload.titleCard
+    overlayImage: !speedrun && payload.overlayImage ? String(payload.overlayImage) : null,
+    bgMusic: !speedrun && payload.bgMusic ? String(payload.bgMusic) : null,
+    titleCard: !speedrun && payload.titleCard
       ? {
           vidSrc: payload.titleCard.vidSrc
             ? String(payload.titleCard.vidSrc)
@@ -248,7 +242,6 @@ function parseL3L4(payload) {
   };
 }
 
-const OST_ANIMATION = { fadeIn: 0.5, fadeOut: 0.5 };
 const ENABLE_TOP_RIGHT_OVERLAY = true;
 
 // Floor to 2 decimal places to prevent HyperFrames seeking past the last decoded
@@ -528,20 +521,29 @@ export function normalizeTimelineInput(payload) {
   }
 
   if (payload && !Array.isArray(payload)) {
-    if (payload.intro) timelineData.intro = String(payload.intro);
-    if (payload.outro) timelineData.outro = String(payload.outro);
-    if (payload.overlayImage)
-      timelineData.overlayImage = String(payload.overlayImage);
-    if (payload.bgMusic) timelineData.bgMusic = String(payload.bgMusic);
-    if (payload.titleCard) {
-      timelineData.titleCard = {
-        vidSrc: payload.titleCard.vidSrc
-          ? String(payload.titleCard.vidSrc)
-          : "",
-        titleText: payload.titleCard.titleText
-          ? String(payload.titleCard.titleText)
-          : "",
-      };
+    timelineData.speedrun = isSpeedrun(payload);
+    if (timelineData.speedrun) {
+      timelineData.intro = null;
+      timelineData.outro = null;
+      timelineData.overlayImage = null;
+      timelineData.bgMusic = null;
+      timelineData.titleCard = null;
+    } else {
+      if (payload.intro) timelineData.intro = String(payload.intro);
+      if (payload.outro) timelineData.outro = String(payload.outro);
+      if (payload.overlayImage)
+        timelineData.overlayImage = String(payload.overlayImage);
+      if (payload.bgMusic) timelineData.bgMusic = String(payload.bgMusic);
+      if (payload.titleCard) {
+        timelineData.titleCard = {
+          vidSrc: payload.titleCard.vidSrc
+            ? String(payload.titleCard.vidSrc)
+            : "",
+          titleText: payload.titleCard.titleText
+            ? String(payload.titleCard.titleText)
+            : "",
+        };
+      }
     }
   }
   return timelineData;
