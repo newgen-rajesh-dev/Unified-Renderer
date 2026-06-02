@@ -6,10 +6,26 @@ import { runRender } from './common/render.js';
 import { createJobStore } from './common/job-store.js';
 import { createAssetCache } from './common/asset-cache.js';
 import {
-  normalizeTimelineInput,
+  normalizeTimelineInput as normalizeL3L4Input,
   generateCompositionHtml,
   prepareAssets as prepareL3L4Assets,
 } from './strategies/l3l4/index.js';
+import {
+  normalizeTimelineInput as normalizeL1L2Input,
+  prepareAssets as prepareL1L2Assets,
+} from './strategies/l1l2/index.js';
+
+function normalizeTimelineInput(payload) {
+  const type = Array.isArray(payload)
+    ? ''
+    : typeof payload?.type === 'string'
+      ? payload.type.toUpperCase()
+      : '';
+  if (type === 'L1L2' || type === 'L1' || type === 'L2') {
+    return normalizeL1L2Input(payload);
+  }
+  return normalizeL3L4Input(payload);
+}
 
 const PORT = process.env.PORT || 3001;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -196,6 +212,12 @@ async function startJobPipeline({ jobId, timelineData, compositionDir, artifacts
 
     if (timelineData._kind === 'L3L4') {
       timelineData = await prepareL3L4Assets(compositionDir, timelineData, jobId, assetCache);
+      job.intro = null;
+      job.outro = null;
+    } else if (timelineData._kind === 'L1L2') {
+      timelineData = await prepareL1L2Assets(compositionDir, timelineData, jobId, assetCache);
+      job.intro = null;
+      job.outro = null;
     }
 
     await fs.writeFile(compositionPath, generateCompositionHtml(timelineData));

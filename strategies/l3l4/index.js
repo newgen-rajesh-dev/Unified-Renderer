@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { probeMediaDuration, stitchSegments } from "../../common/media.js";
+import { probeMediaDuration, reencodeForSeek } from "../../common/media.js";
 
 function camelToKebab(str) {
   return str.replace(/([A-Z])/g, "-$1").toLowerCase();
@@ -251,46 +251,74 @@ function parseL3L4(payload) {
 const OST_ANIMATION = { fadeIn: 0.5, fadeOut: 0.5 };
 const ENABLE_TOP_RIGHT_OVERLAY = true;
 
+// Floor to 2 decimal places to prevent HyperFrames seeking past the last decoded
+// frame (e.g. 5.789898 → 5.78), which causes a black screen at clip boundaries.
+function truncateDuration(duration) {
+  return Math.floor(duration * 100) / 100;
+}
+
 export async function prepareAssets(
   jobDir,
   l3l4,
   jobId = "unknown",
   assetCache = null,
 ) {
+  if (!assetCache) {
+    throw new Error("Asset cache is required for L3L4 asset preparation");
+  }
+
   const assetsDir = path.join(jobDir, "assets");
   await fs.mkdir(assetsDir, { recursive: true });
 
   const clips = [];
-  const sectionVideos = [];
-  let titleCardVideo = null;
   let overlayImageRel = null;
 
+  // --- Intro ---
+  let introRelPath = null;
+  let introDuration = 0;
+  if (l3l4.intro) {
+    const introRel = "assets/intro.mp4";
+    const introAbs = path.join(jobDir, introRel);
+    console.log(`[IntroDownloadStarted][${jobId}] Resolving intro video`);
+    await assetCache.materialize(l3l4.intro, introAbs, {
+      fallbackExt: ".mp4",
+      jobId,
+      label: "intro",
+    });
+    await reencodeForSeek(introAbs, { jobId, label: "intro" });
+    const rawDuration = await probeMediaDuration(introAbs);
+    introDuration = truncateDuration(rawDuration);
+    introRelPath = introRel;
+    console.log(
+      `[IntroProbeCompleted][${jobId}] Probed intro duration=${rawDuration.toFixed(3)}s → truncated=${introDuration}s`,
+    );
+  }
+
+  // --- Title card ---
+  let titleCardRelPath = null;
+  let titleCardDuration = 0;
   if (l3l4.titleCard?.vidSrc) {
     const titleVideoRel = "assets/title-card.mp4";
     const titleVideoAbs = path.join(jobDir, titleVideoRel);
     console.log(
       `[TitleCardDownloadStarted][${jobId}] Resolving title card source video`,
     );
-    if (!assetCache) {
-      throw new Error("Asset cache is required for L3L4 asset preparation");
-    }
     await assetCache.materialize(l3l4.titleCard.vidSrc, titleVideoAbs, {
       fallbackExt: ".mp4",
       jobId,
       label: "title-card",
     });
-    const duration = await probeMediaDuration(titleVideoAbs);
+    await reencodeForSeek(titleVideoAbs, { jobId, label: "title-card" });
+    const rawDuration = await probeMediaDuration(titleVideoAbs);
+    titleCardDuration = truncateDuration(rawDuration);
+    titleCardRelPath = titleVideoRel;
     console.log(
-      `[TitleCardProbeCompleted][${jobId}] Probed title card duration=${duration.toFixed(3)}s`,
+      `[TitleCardProbeCompleted][${jobId}] Probed title card duration=${rawDuration.toFixed(3)}s → truncated=${titleCardDuration}s`,
     );
-    titleCardVideo = {
-      absPath: titleVideoAbs,
-      relPath: titleVideoRel,
-      duration,
-      titleText: l3l4.titleCard.titleText,
-    };
   }
 
+  // --- Section videos ---
+  const sectionVideos = [];
   for (const s of l3l4.sections) {
     let urlExt = ".mp4";
     try {
@@ -302,44 +330,42 @@ export async function prepareAssets(
     console.log(
       `[SectionDownloadStarted][${jobId}] Resolving section-${s.idx} source video`,
     );
-    if (!assetCache) {
-      throw new Error("Asset cache is required for L3L4 asset preparation");
-    }
     await assetCache.materialize(s.link, videoAbs, {
       fallbackExt: ".mp4",
       jobId,
       label: `section-${s.idx}`,
     });
-    const duration = await probeMediaDuration(videoAbs);
+    await reencodeForSeek(videoAbs, { jobId, label: `section-${s.idx}` });
+    const rawDuration = await probeMediaDuration(videoAbs);
+    const duration = truncateDuration(rawDuration);
     console.log(
-      `[SectionProbeCompleted][${jobId}] Probed section-${s.idx} duration=${duration.toFixed(3)}s`,
+      `[SectionProbeCompleted][${jobId}] Probed section-${s.idx} duration=${rawDuration.toFixed(3)}s → truncated=${duration}s`,
     );
-    sectionVideos.push({
-      idx: s.idx,
-      absPath: videoAbs,
-      relPath: videoRel,
-      duration,
-      ost: s.ost,
-    });
+    sectionVideos.push({ idx: s.idx, relPath: videoRel, duration, ost: s.ost });
   }
 
-  const stitchedMainRel = "assets/main-sections.mp4";
-  const stitchedMainAbs = path.join(jobDir, stitchedMainRel);
-  const stitchInputs = [
-    ...(titleCardVideo ? [titleCardVideo.absPath] : []),
-    ...sectionVideos.map((v) => v.absPath),
-  ];
-  await stitchSegments({
-    inputs: stitchInputs,
-    outputPath: stitchedMainAbs,
-    width: l3l4.width,
-    height: l3l4.height,
-    fps: 30,
-    jobId,
-    taskName: "MainSectionsStitch",
-  });
-  const stitchedMainDuration = await probeMediaDuration(stitchedMainAbs);
+  // --- Outro ---
+  let outroRelPath = null;
+  let outroDuration = 0;
+  if (l3l4.outro) {
+    const outroRel = "assets/outro.mp4";
+    const outroAbs = path.join(jobDir, outroRel);
+    console.log(`[OutroDownloadStarted][${jobId}] Resolving outro video`);
+    await assetCache.materialize(l3l4.outro, outroAbs, {
+      fallbackExt: ".mp4",
+      jobId,
+      label: "outro",
+    });
+    await reencodeForSeek(outroAbs, { jobId, label: "outro" });
+    const rawDuration = await probeMediaDuration(outroAbs);
+    outroDuration = truncateDuration(rawDuration);
+    outroRelPath = outroRel;
+    console.log(
+      `[OutroProbeCompleted][${jobId}] Probed outro duration=${rawDuration.toFixed(3)}s → truncated=${outroDuration}s`,
+    );
+  }
 
+  // --- Overlay image ---
   if (ENABLE_TOP_RIGHT_OVERLAY && l3l4.overlayImage) {
     let imageExt = ".png";
     try {
@@ -360,43 +386,73 @@ export async function prepareAssets(
     );
   }
 
-  clips.push({
-    id: "l3l4-main-video",
-    type: "video",
-    content: stitchedMainRel,
-    start: 0,
-    duration: stitchedMainDuration,
-    mediaDuration: stitchedMainDuration,
-    trackIndex: 100,
-    animation: { fadeIn: 0, fadeOut: 0 },
-  });
+  // --- Build clips ---
+  // Track layout:
+  //   90  — intro video
+  //   100 — title card + section videos (main content)
+  //   110 — outro video
+  //   200 — OST chips
+  //   250 — title card text overlay
+  //   300 — top-right overlay image (full span)
 
-  if (titleCardVideo?.titleText) {
-    clips.push({
-      id: "l3l4-title-card-text",
-      type: "titleText",
-      content: titleCardVideo.titleText,
-      start: 0,
-      duration: titleCardVideo.duration,
-      trackIndex: 250,
-      animation: { fadeIn: 0.3, fadeOut: 0.3 },
-    });
-  }
+  const mainDuration = truncateDuration(
+    titleCardDuration + sectionVideos.reduce((sum, v) => sum + v.duration, 0),
+  );
+  const totalDuration = truncateDuration(introDuration + mainDuration + outroDuration);
 
-  if (ENABLE_TOP_RIGHT_OVERLAY && overlayImageRel) {
+  // Intro
+  if (introRelPath) {
     clips.push({
-      id: "l3l4-top-right-overlay",
-      type: "topRightImage",
-      content: overlayImageRel,
+      id: "l3l4-intro-video",
+      type: "video",
+      content: introRelPath,
       start: 0,
-      duration: stitchedMainDuration,
-      trackIndex: 300,
+      duration: introDuration,
+      mediaDuration: introDuration,
+      trackIndex: 90,
       animation: { fadeIn: 0, fadeOut: 0 },
     });
   }
 
-  let cursor = titleCardVideo?.duration || 0;
+  // Title card + sections (all offset by intro duration)
+  let cursor = introDuration;
+
+  if (titleCardRelPath) {
+    clips.push({
+      id: "l3l4-title-card-video",
+      type: "video",
+      content: titleCardRelPath,
+      start: cursor,
+      duration: titleCardDuration,
+      mediaDuration: titleCardDuration,
+      trackIndex: 100,
+      animation: { fadeIn: 0, fadeOut: 0 },
+    });
+    if (l3l4.titleCard?.titleText) {
+      clips.push({
+        id: "l3l4-title-card-text",
+        type: "titleText",
+        content: l3l4.titleCard.titleText,
+        start: cursor,
+        duration: titleCardDuration,
+        trackIndex: 250,
+        animation: { fadeIn: 0.3, fadeOut: 0.3 },
+      });
+    }
+    cursor = truncateDuration(cursor + titleCardDuration);
+  }
+
   for (const section of sectionVideos) {
+    clips.push({
+      id: `l3l4-section-${section.idx}-video`,
+      type: "video",
+      content: section.relPath,
+      start: cursor,
+      duration: section.duration,
+      mediaDuration: section.duration,
+      trackIndex: 100,
+      animation: { fadeIn: 0, fadeOut: 0 },
+    });
     if (section.ost) {
       clips.push({
         id: `l3l4-ost-${section.idx}`,
@@ -408,17 +464,45 @@ export async function prepareAssets(
         animation: OST_ANIMATION,
       });
     }
-    cursor += section.duration;
+    cursor = truncateDuration(cursor + section.duration);
+  }
+
+  // Outro
+  if (outroRelPath) {
+    clips.push({
+      id: "l3l4-outro-video",
+      type: "video",
+      content: outroRelPath,
+      start: introDuration + mainDuration,
+      duration: outroDuration,
+      mediaDuration: outroDuration,
+      trackIndex: 110,
+      animation: { fadeIn: 0, fadeOut: 0 },
+    });
+  }
+
+  // Overlay image spans the full composition
+  if (ENABLE_TOP_RIGHT_OVERLAY && overlayImageRel) {
+    clips.push({
+      id: "l3l4-top-right-overlay",
+      type: "topRightImage",
+      content: overlayImageRel,
+      start: 0,
+      duration: totalDuration,
+      trackIndex: 300,
+      animation: { fadeIn: 0, fadeOut: 0 },
+    });
   }
 
   return {
     id: l3l4.id,
-    duration: stitchedMainDuration,
+    duration: totalDuration,
     width: l3l4.width,
     height: l3l4.height,
     background: l3l4.background,
-    intro: l3l4.intro || null,
-    outro: l3l4.outro || null,
+    // intro/outro are now embedded in the timeline — signal caller to skip stitching
+    intro: null,
+    outro: null,
     bgMusic: l3l4.bgMusic || null,
     clips,
   };

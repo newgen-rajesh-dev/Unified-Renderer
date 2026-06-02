@@ -133,6 +133,38 @@ export async function stitchSegments({
   });
 }
 
+export async function reencodeForSeek(inputPath, { jobId = 'unknown', label = 'video' } = {}) {
+  const tmpPath = inputPath + '.reenc.mp4';
+  const args = [
+    '-y',
+    '-i', inputPath,
+    '-c:v', 'libx264',
+    '-preset', process.env.FFMPEG_PRESET || 'veryfast',
+    '-r', '30',
+    '-g', '30',
+    '-keyint_min', '30',
+    '-movflags', '+faststart',
+    '-c:a', 'copy',
+    tmpPath,
+  ];
+
+  await new Promise((resolve, reject) => {
+    console.log(`[ReencodeStarted][${jobId}] Re-encoding ${label} for dense keyframes`);
+    const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stderr = '';
+    proc.stderr.on('data', (d) => { stderr += d.toString(); });
+    proc.on('error', (err) => reject(new Error(`ffmpeg reencode spawn failed: ${err.message}`)));
+    proc.on('close', (code) => {
+      if (code === 0) return resolve();
+      reject(new Error(`ffmpeg reencode failed (code ${code}): ${stderr.slice(-600)}`));
+    });
+  });
+
+  const { rename } = await import('fs/promises');
+  await rename(tmpPath, inputPath);
+  console.log(`[ReencodeCompleted][${jobId}] Re-encoded ${label} → dense keyframes applied`);
+}
+
 export async function applyBackgroundMusic({
   inputVideoPath,
   musicPath,
