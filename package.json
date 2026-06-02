@@ -4,9 +4,9 @@
   "type": "module",
   "scripts": {
     "dev": "bun run server.js",
-    "check": "bunx --bun hyperframes@0.6.46 lint && bunx --bun hyperframes@0.6.46 validate && bunx --bun hyperframes@0.6.46 inspect",
-    "render": "bunx --bun hyperframes@0.6.46 render",
-    "publish": "bunx --bun hyperframes@0.6.46 publish"
+    "check": "bunx --bun hyperframes@0.6.69 lint && bunx --bun hyperframes@0.6.69 validate && bunx --bun hyperframes@0.6.69 inspect",
+    "render": "bunx --bun hyperframes@0.6.69 render",
+    "publish": "bunx --bun hyperframes@0.6.69 publish"
   },
   "dependencies": {
     "uploadthing": "^7.7.4"

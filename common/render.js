@@ -22,7 +22,8 @@ export function runRender(
     const proc = spawn(
       "bunx",
       [
-        "hyperframes",
+        "--bun",
+        `hyperframes@${process.env.HYPERFRAMES_VERSION || "0.6.69"}`,
         "render",
         "--output",
         mainArtifactPath,

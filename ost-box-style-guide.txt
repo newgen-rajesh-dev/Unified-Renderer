@@ -1,11 +1,10 @@
-/* Frame 1 */
+/* Overlay-guide */
 
 /* Auto layout */
 display: flex;
 flex-direction: column;
-justify-content: flex-end;
 align-items: flex-start;
-padding: 122px 60px;
+padding: 644px 0px 0px;
 gap: 10px;
 
 position: relative;
@@ -15,32 +14,23 @@ height: 1080px;
 background: #2C2C2C;
 
 
-/* Frame 2 */
+/* Main-frame */
 
 /* Auto layout */
 display: flex;
 flex-direction: row;
-justify-content: center;
 align-items: center;
 padding: 0px;
 gap: 10px;
 
-width: 1145px;
-height: 226px;
+width: 1072px;
+height: 194px;
 
-background: #3AA0FF;
+background: #005CA4;
 
-/* Inside auto layout */
-flex: none;
-order: 0;
-flex-grow: 0;
-
-
-/* Frame 5 */
-
-width: 1145px;
-height: 226px;
-
+/* Runtime note:
+   Generated overlays use fit-content width/height with these values as max/two-line targets.
+   Single-line text hugs the content; wrapped text caps at the Figma 1072x194 layout. */
 
 /* Inside auto layout */
 flex: none;
@@ -48,15 +38,55 @@ order: 0;
 flex-grow: 0;
 
 
-/* Frame 3 */
+/* Overlay-main-container */
 
-position: absolute;
-width: 63px;
-height: 226px;
-left: 0px;
-top: 0px;
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 10px;
+
+width: 1072px;
+height: 194px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Frame 6 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+
+width: 1072px;
+height: 194px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Shape */
+
+width: 27px;
+height: 194px;
 
 background: #C0FF4B;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
 
 
 /* Frame 4 */
@@ -66,27 +96,29 @@ display: flex;
 flex-direction: column;
 justify-content: center;
 align-items: center;
-padding: 10px 15px;
+padding: 30px 43px;
 gap: 10px;
 
-position: absolute;
-width: 1072px;
-height: 226px;
-left: 73px;
-top: 0px;
+width: 1045px;
+height: 194px;
 
 
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
 
-/* Charming way of Greeting so. */
 
-width: 1042px;
-height: 206px;
+/* text */
+
+width: 959px;
+height: 134px;
 
 font-family: 'Inter';
 font-style: normal;
-font-weight: 600;
-font-size: 85px;
-line-height: 103px;
+font-weight: 500;
+font-size: 55px;
+line-height: 67px;
 
 color: #FFFFFF;
 

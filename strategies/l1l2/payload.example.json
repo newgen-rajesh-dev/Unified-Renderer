@@ -1,0 +1,82 @@
+{
+  "type": "L1L2",
+  "id": "l1l2-candidate-assessment",
+  "speedrun": true,
+  "intro": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJ01C4zbMDby1fMIBdvzGUjV9PErs87J2nwqQN",
+  "outro": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJjyNUPl3m4Y58IQAV2xLzbX0UdoatvR36DSJr",
+  "overlayImage": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJpZ61gBuYec2TMGAsPSIlKVXLmZHrQ5xonq3i",
+  "bgMusic": "https://sacmmx4bmd.ufs.sh/f/JqqBplc4umolC1P1jac9WeyMN2RB8LPkHFOudK95JqYml1vb",
+  "background": "#000000",
+  "titleCard": {
+    "vidSrc": "https://example.com/title-card.mp4",
+    "titleText": "Assessing Candidates"
+  },
+  "sections": [
+    {
+      "type": "img",
+      "link": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJ3hcyb6qKTsFG6MraXLyoqSg25wlA4b3vI8mR",
+      "audio": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJhosn86T2ojEJKIys8AvqMgYrpZzL7FndNQHG",
+      "ost": "Assessing Candidates: The Key to Success"
+    },
+    {
+      "type": "img",
+      "link": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJYVyVKYOKglbSZAyIoLr6vwO2Yh9x3GezE0JU",
+      "audio": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJwp2FSs9l7KOiEkI53YDVWRNLp9QZXnuCof0q",
+      "ost": "Behavioral Fit: Aligning Values"
+    },
+    {
+      "type": "img",
+      "link": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJGEku3NIpgWlOtVRYiK5jqadF6zHmcBsE7JST",
+      "audio": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJ3oUZt5qKTsFG6MraXLyoqSg25wlA4b3vI8mR",
+      "ost": "Motivational Fit: Drive and Passion"
+    },
+    {
+      "type": "img",
+      "link": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJhcMJUfT2ojEJKIys8AvqMgYrpZzL7FndNQHG",
+      "audio": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJ1skdtXorFo83MbgivLCh12XPAU5pYcG7Q0HO",
+      "ost": "STAR Technique: Structure Your Questions"
+    },
+    {
+      "type": "img",
+      "link": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJYmkVNpsOKglbSZAyIoLr6vwO2Yh9x3GezE0J",
+      "audio": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJayzcSNUNW1Of9FUGbRPwDnt5dMgY8Ev2XQBl",
+      "ost": "Example: Overcoming Obstacles"
+    },
+    {
+      "type": "img",
+      "link": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJomQegupP0cVivWhjBxTIeSE3CyUfAnYO85R4",
+      "audio": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJqlNv6DSQBeUyYf0DpGMW4XjLzEHi96JgsIwx",
+      "ost": "Comfort Matters: Create a Welcoming Space"
+    },
+    {
+      "type": "img",
+      "link": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJTfhxShC7tKkEUHOQWuo0Bc92nZ4JVqAaNIfp",
+      "audio": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJAGL4Sq5Wlzf2BF7JUcHonXat0u84IiDehOK3",
+      "ost": "Listen Actively: Engage with Candidates"
+    },
+    {
+      "type": "img",
+      "link": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJlMK1dugOto1A6iBnJQbcsDkWqUfGul04Cp5m",
+      "audio": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJq4dXKgSQBeUyYf0DpGMW4XjLzEHi96JgsIwx",
+      "ost": "Evaluate: Align with Core Values"
+    },
+    {
+      "type": "img",
+      "link": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJtTduu0a4y6u0OG5lMHfLYwbSpqcaNRhn7U2A",
+      "audio": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJgoL8HC5o8BZ9tqCu165rGAEFQ20ijUSRNyvM",
+      "ost": "Team Involvement: Gain Diverse Insights"
+    },
+    {
+      "type": "img",
+      "link": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJGRKkyBIpgWlOtVRYiK5jqadF6zHmcBsE7JST",
+      "audio": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJph3HLYwuYec2TMGAsPSIlKVXLmZHrQ5xonq3",
+      "ost": "Reflect and Improve: Enhance Skills"
+    },
+    {
+      "type": "img",
+      "link": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJ28aqzubnibpf49qHVstPvEudzhyFa8gY1Urk",
+      "audio": "https://8fxvgnmtrn.ufs.sh/f/hkA3iyT2ojEJF4OzXB5sjvZQnPudGpbeTtExfX9Y6MN3ck0H",
+      "ost": "Next Steps: Hire with Intent"
+    }
+  ]
+}
