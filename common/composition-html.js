@@ -32,26 +32,28 @@ function buildCharacterSpans(value) {
     .join("");
 }
 
-function estimateKeyLearningPointWidth(points) {
+function estimateKeyLearningPointFontSize(points) {
   const maxChars = points.reduce((max, point) => Math.max(max, Array.from(String(point)).length), 0);
-  const bulletAndPaddingWidth = 128;
-  const estimatedTextWidth = maxChars * 31;
-  return Math.min(1640, Math.max(1306, bulletAndPaddingWidth + estimatedTextWidth));
-}
-
-function estimateKeyLearningFontSize(points, pointWidth) {
-  const maxChars = points.reduce((max, point) => Math.max(max, Array.from(String(point)).length), 0);
-  const availableTextWidth = pointWidth - 128;
+  const availableTextWidth = 1516;
   const estimatedTextWidth = Math.max(1, maxChars * 31);
   if (estimatedTextWidth <= availableTextWidth) return 62;
   return Math.max(46, Math.floor(62 * (availableTextWidth / estimatedTextWidth)));
 }
 
+function estimateKeyLearningTitleFontSize(content) {
+  const titleTexts = [content?.blue ?? "", content?.green ?? ""];
+  const maxChars = titleTexts.reduce((max, text) => Math.max(max, Array.from(String(text)).length), 0);
+  const availableTextWidth = 1171;
+  const estimatedTextWidth = Math.max(1, maxChars * 91);
+  if (estimatedTextWidth <= availableTextWidth) return 166.32;
+  return Math.max(104, Math.floor(166.32 * (availableTextWidth / estimatedTextWidth)));
+}
+
 function buildKeyLearningsHtml({ baseAttrs, content }) {
   const attrs = baseAttrs.replace('class="clip"', 'class="clip key-learning-screen"');
   const points = Array.isArray(content?.points) ? content.points.slice(0, 4) : [];
-  const pointWidth = estimateKeyLearningPointWidth(points);
-  const pointFontSize = estimateKeyLearningFontSize(points, pointWidth);
+  const pointFontSize = estimateKeyLearningPointFontSize(points);
+  const titleFontSize = estimateKeyLearningTitleFontSize(content);
   const pointRows = points
     .map(
       (point, index) => `
@@ -65,12 +67,12 @@ function buildKeyLearningsHtml({ baseAttrs, content }) {
     .join("");
 
   return `<div ${attrs}>
-        <div class="key-learning-frame">
+        <div class="key-learning-frame" style="--key-learning-title-font-size: ${titleFontSize}px; --key-learning-point-font-size: ${pointFontSize}px">
           <div class="key-learning-title">
             <div class="key-learning-blue">${escapeHtml(content?.blue ?? "")}</div>
             <div class="key-learning-green">${escapeHtml(content?.green ?? "")}</div>
           </div>
-          <div class="key-learning-points" style="--key-learning-point-width: ${pointWidth}px; --key-learning-point-font-size: ${pointFontSize}px">
+          <div class="key-learning-points">
             ${pointRows}
           </div>
         </div>
@@ -345,18 +347,17 @@ export function generateCompositionHtml(timelineData) {
         pointer-events: none;
       }
       .key-learning-frame {
-        width: 100%;
-        max-width: 1920px;
+        width: 1612px;
         height: 1080px;
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding: 92px 10px;
-        gap: 63px;
+        padding: 80px 10px;
+        gap: 36px;
       }
       .key-learning-title {
-        width: 972px;
-        height: 325px;
+        width: 1171px;
+        height: 392px;
         display: flex;
         flex-direction: column;
         align-items: flex-start;
@@ -366,30 +367,29 @@ export function generateCompositionHtml(timelineData) {
         font-family: 'Inter', sans-serif;
         font-style: italic;
         font-weight: 900;
-        font-size: 166.32px;
+        font-size: var(--key-learning-title-font-size, 166.32px);
+        line-height: 196px;
         letter-spacing: 0;
         text-transform: uppercase;
         font-variation-settings: 'slnt' -10;
         will-change: transform, opacity;
       }
       .key-learning-blue {
-        width: 350px;
-        height: 125px;
-        line-height: 75%;
+        width: 1171px;
+        height: 196px;
         color: #0092D9;
         text-shadow: 4.32px 4.32px 0 #013B58, 7.56px 10.8px 0 #000000;
       }
       .key-learning-green {
-        width: 972px;
-        height: 200px;
-        line-height: 200px;
+        width: 1171px;
+        height: 196px;
         color: #A4CD4E;
         text-shadow: 4.32px 4.32px 0 #3F4C1B, 7.56px 10.8px 0 #000000;
       }
       .key-learning-points {
-        width: min(calc(var(--key-learning-point-width) + 32px), 1704px);
-        min-width: min(calc(var(--key-learning-point-width) + 32px), 1704px);
-        height: 508px;
+        width: 1592px;
+        min-width: 1338px;
+        height: 492px;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
@@ -398,21 +398,26 @@ export function generateCompositionHtml(timelineData) {
         gap: 10px;
       }
       .key-learning-point {
-        width: min(var(--key-learning-point-width), 1640px);
-        height: 81px;
-        flex: 0 0 81px;
+        width: 1560px;
+        height: 75px;
+        flex: 0 0 75px;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        padding: 0 22px;
+        gap: 10px;
         background: #FFFFFF;
         box-shadow: 0 7px 0 #328EFE;
         overflow: hidden;
         will-change: transform, opacity;
       }
       .key-learning-point-text {
-        width: 100%;
+        width: 1516px;
         height: 75px;
         display: flex;
         align-items: center;
         gap: 28px;
-        padding: 0 32px;
+        padding: 0;
         font-family: 'Inter', sans-serif;
         font-style: normal;
         font-weight: 400;
