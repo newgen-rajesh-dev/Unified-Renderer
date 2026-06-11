@@ -19,7 +19,7 @@ This project is a Bun-based rendering service. It receives JSON payloads, prepar
 11. `common/render.js` runs HyperFrames render.
 12. If `bgMusic` exists, `common/media.js` applies it with ffmpeg.
 13. The final MP4 is copied into `renders/`.
-14. `common/uploadthing.js` uploads the MP4.
+14. `common/s3-upload.js` uploads the MP4 to AWS S3 with Bun's native S3 client.
 15. Completed job workspaces are removed.
 
 ## Entrypoint
@@ -222,14 +222,15 @@ Private render logs stay in memory and are not returned by public job responses.
 
 ## Uploads
 
-File: `common/uploadthing.js`
+File: `common/s3-upload.js`
 
 Responsibilities:
 
-- create the UploadThing client
-- require `UPLOADTHING_TOKEN`
-- upload completed MP4 files
-- return uploaded URL/key metadata
+- create the Bun `S3Client`
+- require `AWS_ACCESS_KEY`, `AWS_SECRET_KEY`, and `AWS_S3_BUCKET`
+- require `AWS_S3_REGION`
+- upload completed MP4 files to `renders/<jobId>/<fileName>`
+- return AWS S3 URL/key metadata
 
 ## Generated Files
 

@@ -8,9 +8,7 @@
     "render": "bun run hyperframes render",
     "publish": "bun run hyperframes publish"
   },
-  "dependencies": {
-    "uploadthing": "^7.7.4"
-  },
+  "dependencies": {},
   "devDependencies": {
     "esbuild": "^0.28.0",
     "hyperframes": "0.6.69"

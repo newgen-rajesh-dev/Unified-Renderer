@@ -10,7 +10,7 @@ A Bun service that accepts JSON payloads, generates HyperFrames compositions, re
 | Node/npm | Used only for npm script compatibility |
 | ffmpeg / ffprobe | Required for probing, re-encoding, and background music |
 | Local dependencies | Run `bun install` before rendering; HyperFrames is installed as a local package |
-| UploadThing token | Required only when completed videos should upload |
+| AWS S3 credentials | Required for completed video uploads |
 
 The service listens on port `3001` by default.
 
@@ -46,9 +46,14 @@ Stop-Process -Id (Get-NetTCPConnection -LocalPort 3001).OwningProcess -Force
 | --- | --- | --- |
 | `PORT` | `3001` | HTTP server port |
 | `CORS_ORIGIN` | `*` | CORS origin |
-| `UPLOADTHING_TOKEN` | none | UploadThing authentication |
+| `AWS_ACCESS_KEY` | none | AWS access key used by Bun's S3 client |
+| `AWS_SECRET_KEY` | none | AWS secret key used by Bun's S3 client |
+| `AWS_S3_BUCKET` | none | S3 bucket for completed MP4 uploads |
+| `AWS_S3_REGION` | none | AWS region for the S3 bucket, for example `us-east-1` |
 | `RENDER_QUALITY` | `standard` | Render quality passed to HyperFrames |
 | `FFMPEG_PRESET` | `veryfast` | ffmpeg preset for video re-encoding |
+
+Completed videos are uploaded to S3 under `renders/<jobId>/<fileName>`. Job metadata stores that object key in `uploadedKey` and an AWS virtual-hosted object URL in `uploadedUrl`.
 
 ## Endpoints
 

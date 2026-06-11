@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { spawn } from "child_process";
 import { applyBackgroundMusic, downloadToFile } from "./media.js";
-import { uploadVideoToUploadThing } from "./uploadthing.js";
+import { uploadVideoToS3 } from "./s3-upload.js";
 
 export function runRender(
   jobId,
@@ -176,11 +176,11 @@ async function uploadCompletedVideo(
   jobStore?.save(job);
   console.log(`[UploadStarted][${jobId}] Uploading completed video`);
 
-  const uploaded = await uploadVideoToUploadThing(publishPath, {
+  const uploaded = await uploadVideoToS3(publishPath, {
     fileName,
     jobId,
   });
-  job.uploadedUrl = uploaded.ufsUrl || uploaded.url;
+  job.uploadedUrl = uploaded.url;
   job.uploadedKey = uploaded.key;
   jobStore?.save(job);
   console.log(`[UploadCompleted][${jobId}] Completed video uploaded`);
