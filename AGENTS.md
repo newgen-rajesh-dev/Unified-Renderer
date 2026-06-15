@@ -74,9 +74,18 @@ Every payload requires:
 
 - `type`
 - `id`
+- `callbackUrl`
 - at least one of `intro`, `outro`, `titleCard`, or `scenes`
 
 `logo` and `bgMusic` cannot be sent alone.
+
+`POST /render` is asynchronous: it responds `202` immediately and POSTs the
+result (`status`, `uploadedKey`, ...) to `callbackUrl` when the render finishes.
+A missing `callbackUrl` is rejected with `422`. The payload's `type` and an
+optional `callbackId` are echoed back in the callback so the caller can route the
+result without parsing the URL (the renderer never interprets `callbackId`). The
+callback is fire-and-forget with no retries; the result is also pollable at
+`GET /status/:jobId`.
 
 `titleCard` requires both:
 

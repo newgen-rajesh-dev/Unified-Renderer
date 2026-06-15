@@ -4,23 +4,31 @@ This project is a Bun-based rendering service. It receives JSON payloads, prepar
 
 ## Runtime Flow
 
+`POST /render` is asynchronous: the server accepts the job, responds immediately
+with `202`, renders in the background, and POSTs the result to the payload's
+`callbackUrl`. It does not hold the request connection open for the render.
+
 1. `server.js` starts the Bun HTTP server.
 2. `POST /render` receives a JSON payload.
 3. `server.js` validates the top-level `type` and routes to a strategy:
    - `L1L2` -> `strategies/l1l2/index.js`
    - `L3L4` -> `strategies/l3l4/index.js`
-4. The strategy normalizes and validates the payload.
-5. A job record is created in memory and persisted through `common/job-store.js`.
-6. A workspace is created at `.jobs/<jobId>/`.
-7. Strategy asset preparation downloads/materializes media into `.jobs/<jobId>/assets/`.
-8. The strategy returns a neutral timeline model with `clips`.
-9. `common/composition-html.js` converts the timeline model into `index.html`.
-10. `server.js` writes a generated `hyperframes.json` into the job workspace.
-11. `common/render.js` runs HyperFrames render.
-12. If `bgMusic` exists, `common/media.js` applies it with ffmpeg.
-13. The final MP4 is copied into `renders/`.
-14. `common/s3-upload.js` uploads the MP4 to AWS S3 with Bun's native S3 client.
-15. Completed job workspaces are removed.
+4. The strategy normalizes and validates the payload. `server.js` also requires a
+   `callbackUrl` and reads an optional `callbackId` (both from the raw payload,
+   not the normalized timeline); a missing `callbackUrl` is rejected with `422`.
+5. A job record (including `callbackUrl` and `callbackId`) is created in memory and persisted through `common/job-store.js`.
+6. `server.js` responds immediately with `202` and `{ jobId, status: "rendering", accepted: true, statusUrl }`, then runs the pipeline in the background.
+7. A workspace is created at `.jobs/<jobId>/`.
+8. Strategy asset preparation downloads/materializes media into `.jobs/<jobId>/assets/`.
+9. The strategy returns a neutral timeline model with `clips`.
+10. `common/composition-html.js` converts the timeline model into `index.html`.
+11. `server.js` writes a generated `hyperframes.json` into the job workspace.
+12. `common/render.js` runs HyperFrames render.
+13. If `bgMusic` exists, `common/media.js` applies it with ffmpeg.
+14. The final MP4 is copied into `renders/`.
+15. `common/s3-upload.js` uploads the MP4 to AWS S3 with Bun's native S3 client.
+16. Completed job workspaces are removed.
+17. `deliverCallback` (in `server.js`) makes one `POST` to the job's `callbackUrl` with the terminal result (`status`, `uploadedKey`, `uploadedUrl`, `error`, ...) plus the payload's `type` and `callbackId` echoed back for the caller to route on. Fire-and-forget, no retries; failures are logged. The result remains pollable at `GET /status/:jobId`.
 
 ## Entrypoint
 
@@ -49,6 +57,7 @@ All payloads require:
 
 - `type`
 - `id`
+- `callbackUrl` (the result is delivered here when the render finishes)
 - at least one renderable input:
   - `intro`
   - `outro`

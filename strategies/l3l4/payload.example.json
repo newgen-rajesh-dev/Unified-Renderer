@@ -1,6 +1,8 @@
 {
   "type": "L3L4",
   "id": "l3l4-example-job",
+  "callbackUrl": "https://your-backend.example.com/api/render/callback",
+  "callbackId": "<projectId>",
   "intro": "optional intro video link",
   "outro": "optional outro video link",
   "logo": "optional logo image link",

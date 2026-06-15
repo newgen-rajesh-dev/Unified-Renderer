@@ -1,6 +1,8 @@
 {
   "type": "L1L2",
   "id": "l1l2-example-job",
+  "callbackUrl": "https://your-backend.example.com/api/render/callback",
+  "callbackId": "<scriptId>",
   "intro": "optional intro video link",
   "outro": "optional outro video link",
   "logo": "optional logo image link",

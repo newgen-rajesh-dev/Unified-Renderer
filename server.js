@@ -144,6 +144,24 @@ async function handleRender(req) {
     }, 422);
   }
 
+  const callbackUrl =
+    typeof rawPayload?.callbackUrl === 'string' && rawPayload.callbackUrl.trim()
+      ? rawPayload.callbackUrl.trim()
+      : null;
+  if (!callbackUrl) {
+    return jsonResponse({
+      error: 'Field "callbackUrl" is required. The renderer accepts the job and POSTs the result to this URL when done.',
+    }, 422);
+  }
+
+  // Opaque correlation id supplied by the caller. The renderer does not
+  // interpret it — it is echoed back in the callback (alongside `type`) so the
+  // caller can route the result to the right record (project id / script id).
+  const callbackId =
+    typeof rawPayload?.callbackId === 'string' && rawPayload.callbackId.trim()
+      ? rawPayload.callbackId.trim()
+      : null;
+
   const jobId = `${timelineData.id}-${Date.now()}-${randomUUID().slice(0, 8)}`;
   console.log(`[PayloadReceived][${jobId}] JSON payload parsed and accepted`);
   const compositionDir = path.join(JOBS_DIR, jobId);
@@ -178,40 +196,37 @@ async function handleRender(req) {
     error: null,
     log: '',
     statusUrl: `${new URL(req.url).origin}/status/${jobId}`,
+    callbackUrl,
+    callbackId,
   };
   jobs.set(jobId, job);
   jobStore.save(job);
-  const completedJob = await startJobPipeline({
+
+  // Accept the job and return immediately with the job id. The render runs in
+  // the background and the final result is POSTed to the callbackUrl. This
+  // decouples the long render from the caller's HTTP connection — a dropped
+  // connection no longer loses the result.
+  startJobPipeline({
     jobId,
     timelineData,
     compositionDir,
     artifactsDir,
     compositionPath,
     mainArtifactPath,
-  });
-
-  if (completedJob.status === "failed") {
-    return jsonResponse({
-      jobId,
-      status: completedJob.status,
-      compositionId: completedJob.compositionId,
-      createdAt: completedJob.createdAt,
-      failedAt: completedJob.failedAt,
-      error: completedJob.error,
-      statusUrl: completedJob.statusUrl,
-    }, 500);
-  }
+  })
+    .then((completedJob) => deliverCallback(completedJob))
+    .catch((err) => {
+      console.error(`[JobPipelineCrashed][${jobId}] ${err?.message || err}`);
+    });
 
   return jsonResponse({
     jobId,
-    status: completedJob.status,
-    compositionId: completedJob.compositionId,
-    createdAt: completedJob.createdAt,
-    completedAt: completedJob.completedAt,
-    uploadedUrl: completedJob.uploadedUrl,
-    uploadedKey: completedJob.uploadedKey,
-    statusUrl: completedJob.statusUrl,
-  }, 200);
+    status: 'rendering',
+    accepted: true,
+    compositionId: job.compositionId,
+    createdAt: job.createdAt,
+    statusUrl: job.statusUrl,
+  }, 202);
 }
 
 async function startJobPipeline({ jobId, timelineData, compositionDir, artifactsDir, compositionPath, mainArtifactPath }) {
@@ -247,6 +262,41 @@ async function startJobPipeline({ jobId, timelineData, compositionDir, artifacts
     jobStore.save(job);
     console.error(`[JobPreparationFailed][${jobId}] Job preparation failed: ${err.message}`);
     return job;
+  }
+}
+
+// Deliver the terminal job result (complete or failed) to the caller-supplied
+// callbackUrl. Fire-and-forget, single attempt, no retries — the caller asked
+// for a no-retry contract and the result is also durably available via S3 and
+// GET /status/:jobId as a backstop. Never throws.
+async function deliverCallback(job) {
+  if (!job?.callbackUrl) return;
+  const body = {
+    type: job.strategyName, // 'L1L2' | 'L3L4' — which flow, for the caller to route on
+    callbackId: job.callbackId || null, // echoed correlation id (project id / script id)
+    jobId: job.jobId,
+    compositionId: job.compositionId,
+    status: job.status, // 'complete' | 'failed'
+    uploadedUrl: job.uploadedUrl || null,
+    uploadedKey: job.uploadedKey || null,
+    statusUrl: job.statusUrl || null,
+    error: job.error || null,
+    completedAt: job.completedAt || null,
+    failedAt: job.failedAt || null,
+  };
+  try {
+    const res = await fetch(job.callbackUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    console.log(
+      `[CallbackDelivered][${job.jobId}] POST ${job.callbackUrl} -> ${res.status} (status=${job.status})`,
+    );
+  } catch (err) {
+    console.error(
+      `[CallbackFailed][${job.jobId}] POST ${job.callbackUrl} failed: ${err?.message || err}`,
+    );
   }
 }
 

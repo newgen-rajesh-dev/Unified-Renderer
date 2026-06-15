@@ -60,10 +60,50 @@ Completed videos are uploaded to S3 under `renders/<jobId>/<fileName>`. Job meta
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/health` | Returns server status and job counts |
-| `POST` | `/render` | Creates and runs a render job synchronously |
+| `POST` | `/render` | Accepts a render job and returns immediately (`202`); renders in the background and POSTs the result to `callbackUrl` |
 | `GET` | `/status/:jobId` | Returns public metadata for one job |
 | `GET` | `/jobs` | Lists persisted jobs, newest first |
 | `GET` | `/renders/:file` | Downloads a rendered MP4 from `renders/` |
+
+## Render Lifecycle (async + callback)
+
+`POST /render` is **asynchronous**. It does not hold the connection open for the
+render. The flow is:
+
+1. The caller POSTs a payload that includes a `callbackUrl` (and usually a
+   `callbackId` to correlate the result).
+2. The server validates the payload, creates the job, and responds **immediately**
+   with `202` and `{ jobId, status: "rendering", accepted: true, statusUrl }`.
+3. The render runs in the background (prepare assets → render → bg music → upload to S3).
+4. When the job reaches a terminal state, the server makes **one** `POST` to the
+   caller's `callbackUrl` with the result (no retries). The payload's `type` and
+   the `callbackId` are echoed back so the caller can route the result without
+   parsing the URL.
+5. Job status is always also pollable at `GET /status/:jobId` as a backstop.
+
+`callbackUrl` is **required** — a payload without it is rejected with `422`. The
+URL is treated as a constant by the renderer; correlation lives entirely in the
+echoed `type` + `callbackId`, so one constant callback endpoint can serve every job.
+
+### Callback request body
+
+The server POSTs this JSON to `callbackUrl` (`Content-Type: application/json`):
+
+| Field | Description |
+| --- | --- |
+| `type` | The payload `type` (`L1L2` or `L3L4`), echoed so the caller knows the flow |
+| `callbackId` | The payload's `callbackId`, echoed (or `null`) |
+| `jobId` | The server-assigned job id |
+| `compositionId` | The payload `id` |
+| `status` | `complete` or `failed` |
+| `uploadedKey` | S3 object key of the final MP4 (use this to build fresh URLs) |
+| `uploadedUrl` | AWS virtual-hosted object URL (only valid if the bucket is public) |
+| `statusUrl` | The `GET /status/:jobId` URL |
+| `error` | Failure reason when `status` is `failed`, otherwise `null` |
+| `completedAt` / `failedAt` | Terminal timestamp |
+
+The callback is fire-and-forget with no retries: the caller is assumed to be
+reachable. The result is also durably stored (S3 + `GET /status/:jobId`).
 
 ## Payloads
 
@@ -75,6 +115,8 @@ The server accepts one JSON payload per `POST /render` request.
 | --- | --- | --- |
 | `type` | Yes | Must be `L1L2` or `L3L4` |
 | `id` | Yes | Stable render/composition id |
+| `callbackUrl` | Yes | URL the server POSTs the render result to when the job finishes (see Render Lifecycle) |
+| `callbackId` | No | Opaque correlation id echoed back in the callback so the caller can route the result (e.g. a project id or script id) |
 | `intro` | Conditional | Optional intro video link |
 | `outro` | Conditional | Optional outro video link |
 | `titleCard` | Conditional | Optional title card object |
