@@ -45,7 +45,7 @@ export function createAssetCache(cacheDir) {
         const tmpPath = path.join(cacheDir, `${key}.${randomUUID()}.tmp`);
         console.log(`[AssetCacheMiss][${jobId}] Downloading ${label} into cache`);
         try {
-          await downloadToFile(url, tmpPath);
+          await downloadToFile(url, tmpPath, { jobId, label });
           await fs.rename(tmpPath, cachedPath);
         } catch (err) {
           try {

@@ -41,25 +41,89 @@ export function probeMediaDuration(filePath) {
   });
 }
 
-export function downloadToFile(url, destPath, { timeoutMs = 120000 } = {}) {
-  return (async () => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const response = await fetch(url, { signal: controller.signal });
-      if (!response.ok) {
-        throw new Error(`download failed (${response.status}) for ${url}`);
-      }
-      await Bun.write(destPath, response);
-    } catch (err) {
-      if (err.name === 'AbortError') {
-        throw new Error(`download timed out after ${Math.round(timeoutMs / 1000)}s for ${url}`);
-      }
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// A single download attempt. Aborts if the connection/headers don't arrive
+// within connectTimeoutMs, OR if the body stalls (no bytes for idleTimeoutMs).
+// Streaming chunk-by-chunk is what makes the idle timeout actually fire — handing
+// the whole response to Bun.write leaves a stalled body un-timed and hangs forever.
+async function downloadOnce(url, destPath, { connectTimeoutMs, idleTimeoutMs }) {
+  const controller = new AbortController();
+  let timer = setTimeout(() => controller.abort(), connectTimeoutMs);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      const err = new Error(`download failed (${response.status}) for ${url}`);
+      err.status = response.status;
       throw err;
-    } finally {
-      clearTimeout(timeout);
     }
-  })();
+    if (!response.body) {
+      throw new Error(`download returned no body for ${url}`);
+    }
+
+    const writer = Bun.file(destPath).writer();
+    try {
+      for await (const chunk of response.body) {
+        clearTimeout(timer); // reset the idle clock on every chunk
+        timer = setTimeout(() => controller.abort(), idleTimeoutMs);
+        writer.write(chunk);
+      }
+      await writer.end();
+    } catch (err) {
+      try { await writer.end(); } catch {}
+      throw err;
+    }
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      const stall = new Error(`download stalled (no data for ${Math.round(idleTimeoutMs / 1000)}s) for ${url}`);
+      stall.retryable = true;
+      throw stall;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function isRetryable(err) {
+  if (err.retryable) return true;            // stalls
+  if (err.status === undefined) return true; // network/connection errors (no HTTP status)
+  // Transient server-side statuses are worth retrying; permanent 4xx (404/403/...) are not.
+  return err.status === 429 || (err.status >= 500 && err.status <= 599);
+}
+
+export async function downloadToFile(
+  url,
+  destPath,
+  {
+    connectTimeoutMs = 30000,
+    idleTimeoutMs = 30000,
+    retries = 3,
+    backoffMs = 1000,
+    jobId = 'unknown',
+    label = 'asset',
+  } = {},
+) {
+  let lastErr;
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      await downloadOnce(url, destPath, { connectTimeoutMs, idleTimeoutMs });
+      if (attempt > 1) {
+        console.log(`[DownloadRecovered][${jobId}] ${label} downloaded on attempt ${attempt}`);
+      }
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (attempt >= retries || !isRetryable(err)) break;
+      const wait = backoffMs * 2 ** (attempt - 1); // 1s, 2s, 4s, ...
+      console.warn(
+        `[DownloadRetry][${jobId}] ${label} attempt ${attempt}/${retries} failed (${err.message}); retrying in ${wait}ms`,
+      );
+      await sleep(wait);
+    }
+  }
+  throw new Error(`download failed after ${retries} attempt(s) for ${url}: ${lastErr?.message || lastErr}`);
 }
 
 export async function reencodeForSeek(inputPath, { jobId = 'unknown', label = 'video' } = {}) {
