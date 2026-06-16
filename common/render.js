@@ -13,8 +13,13 @@ export function runRender(
   publishConfig,
 ) {
   const job = jobs.get(jobId);
+  const RENDER_TIMEOUT_MS =
+    Number(process.env.RENDER_TIMEOUT_MS) || 15 * 60 * 1000;
 
   return new Promise((resolve) => {
+    let settled = false;
+    // `detached: true` makes the child a process-group leader so a hang can be
+    // killed as a group (HyperFrames spawns its own Chrome/ffmpeg children).
     const proc = spawn(
       "bun",
       [
@@ -27,8 +32,35 @@ export function runRender(
         "--quality",
         process.env.RENDER_QUALITY || "standard",
       ],
-      { cwd: process.cwd() },
+      { cwd: process.cwd(), detached: true },
     );
+
+    const finish = (resolvedJob) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(renderTimer);
+      resolve(resolvedJob);
+    };
+
+    // Kill a render that hangs (e.g. Chrome calibration wedged under load) so it
+    // can't hold a pool slot forever or leave an orphaned process eating CPU.
+    const renderTimer = setTimeout(() => {
+      console.error(
+        `[RenderTimeout][${jobId}] Render exceeded ${RENDER_TIMEOUT_MS}ms — killing process group`,
+      );
+      try {
+        process.kill(-proc.pid, "SIGKILL");
+      } catch {
+        try {
+          proc.kill("SIGKILL");
+        } catch {}
+      }
+      job.status = "failed";
+      job.error = `Render timed out after ${RENDER_TIMEOUT_MS}ms`;
+      job.failedAt = new Date().toISOString();
+      jobStore?.save(job);
+      finish(job);
+    }, RENDER_TIMEOUT_MS);
 
     proc.stdout?.on("data", (chunk) => {
       const text = chunk.toString();
@@ -41,14 +73,24 @@ export function runRender(
       logProcessOutput("HyperFramesStderr", jobId, text);
     });
 
+    proc.on("error", (err) => {
+      job.status = "failed";
+      job.error = `Render process error: ${err.message}`;
+      job.failedAt = new Date().toISOString();
+      jobStore?.save(job);
+      console.error(`[RenderProcessError][${jobId}] ${err.message}`);
+      finish(job);
+    });
+
     proc.on("close", async (code) => {
+      if (settled) return;
       if (code !== 0) {
         job.status = "failed";
         job.error = `Render process exited with code ${code}`;
         job.failedAt = new Date().toISOString();
         jobStore?.save(job);
         console.log(`[RenderFailed][${jobId}] Render process failed`);
-        resolve(job);
+        finish(job);
         return;
       }
 
@@ -91,7 +133,7 @@ export function runRender(
           `[PublishFailed][${jobId}] Publish failed: ${err.message}`,
         );
       }
-      resolve(job);
+      finish(job);
     });
   });
 }

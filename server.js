@@ -48,6 +48,15 @@ const HYPERFRAMES_CONFIG = {
 const jobs = new Map();
 const reservedRenderFileNames = new Set();
 
+// Render concurrency pool. Renders are CPU/Chrome heavy; firing too many at once
+// oversubscribes the box and Chrome calibration times out, leaving jobs hung
+// with no callback. Cap concurrent renders and FIFO-queue the rest — a job that
+// completes, fails, or times out frees its slot and the next queued job starts.
+const MAX_CONCURRENT_RENDERS = Number(process.env.MAX_CONCURRENT_RENDERS) || 3;
+const JOB_TIMEOUT_MS = Number(process.env.JOB_TIMEOUT_MS) || 20 * 60 * 1000;
+const renderQueue = [];
+let activeRenders = 0;
+
 await fs.mkdir(RENDERS_DIR, { recursive: true });
 await fs.mkdir(JOBS_DIR, { recursive: true });
 await fs.mkdir(ASSET_CACHE_DIR, { recursive: true });
@@ -203,21 +212,17 @@ async function handleRender(req) {
   jobStore.save(job);
 
   // Accept the job and return immediately with the job id. The render runs in
-  // the background and the final result is POSTed to the callbackUrl. This
-  // decouples the long render from the caller's HTTP connection — a dropped
-  // connection no longer loses the result.
-  startJobPipeline({
+  // the background (subject to the concurrency pool) and the final result is
+  // POSTed to the callbackUrl. This decouples the long render from the caller's
+  // HTTP connection — a dropped connection no longer loses the result.
+  scheduleRender({
     jobId,
     timelineData,
     compositionDir,
     artifactsDir,
     compositionPath,
     mainArtifactPath,
-  })
-    .then((completedJob) => deliverCallback(completedJob))
-    .catch((err) => {
-      console.error(`[JobPipelineCrashed][${jobId}] ${err?.message || err}`);
-    });
+  });
 
   return jsonResponse({
     jobId,
@@ -263,6 +268,56 @@ async function startJobPipeline({ jobId, timelineData, compositionDir, artifacts
     console.error(`[JobPreparationFailed][${jobId}] Job preparation failed: ${err.message}`);
     return job;
   }
+}
+
+// Enqueue a job and try to start it. Returns nothing — the result is delivered
+// asynchronously via the callbackUrl once a slot frees and the job finishes.
+function scheduleRender(pipelineArgs) {
+  renderQueue.push(pipelineArgs);
+  pumpRenderQueue();
+}
+
+// Start queued jobs until the concurrency cap is reached. Each job's slot is
+// released in `finally`, so a crash/throw can never leak a slot, and the next
+// queued job is pumped immediately.
+function pumpRenderQueue() {
+  while (activeRenders < MAX_CONCURRENT_RENDERS && renderQueue.length > 0) {
+    const pipelineArgs = renderQueue.shift();
+    activeRenders += 1;
+    runJobWithTimeout(pipelineArgs)
+      .catch((err) => {
+        console.error(`[JobPipelineCrashed][${pipelineArgs.jobId}] ${err?.message || err}`);
+      })
+      .finally(() => {
+        activeRenders -= 1;
+        pumpRenderQueue();
+      });
+  }
+}
+
+// Run one job's pipeline with a hard backstop timeout so a hang anywhere (asset
+// prep, render, or publish) can never hold a pool slot forever. On timeout the
+// job is marked failed; the terminal result (complete or failed) is always
+// delivered to the caller's callback.
+async function runJobWithTimeout(pipelineArgs) {
+  const { jobId } = pipelineArgs;
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      const job = jobs.get(jobId);
+      if (job && job.status !== 'complete' && job.status !== 'failed') {
+        job.status = 'failed';
+        job.error = `Job timed out after ${JOB_TIMEOUT_MS}ms`;
+        job.failedAt = new Date().toISOString();
+        jobStore.save(job);
+        console.error(`[JobTimeout][${jobId}] Job exceeded ${JOB_TIMEOUT_MS}ms — marked failed`);
+      }
+      resolve(job);
+    }, JOB_TIMEOUT_MS);
+  });
+  const completedJob = await Promise.race([startJobPipeline(pipelineArgs), timeout]);
+  clearTimeout(timer);
+  await deliverCallback(completedJob);
 }
 
 // Deliver the terminal job result (complete or failed) to the caller-supplied
@@ -325,6 +380,9 @@ function handleHealth() {
     status: 'ok',
     activeJobs,
     totalJobs,
+    activeRenders,
+    queuedRenders: renderQueue.length,
+    maxConcurrentRenders: MAX_CONCURRENT_RENDERS,
   });
 }
 
