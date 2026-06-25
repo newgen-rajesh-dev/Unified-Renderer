@@ -165,6 +165,19 @@ overlay visibility after an exit animation.
 
 Key learnings overlays are shared by both strategies. The strategies add a normal video clip for the background and a `keyLearnings` overlay clip on top of it. The background video duration controls the overlay duration, and the clip is placed after all scenes and before outro.
 
+Generated composition HTML uses UTF-8 and `lang="und"` because caller-provided
+text may be in multiple languages. Title text, key learning text, and OST text
+use `dir="auto"` plus `unicode-bidi: plaintext` so mixed LTR/RTL strings resolve
+direction per text run. Text overlays load and prefer Noto Sans families for
+Latin, Arabic, Bengali, Devanagari/Hindi/Nepali, and Japanese script coverage,
+with Inter, Geist, and system fonts retained as later fallbacks.
+
+Key learning point animation wraps Latin/simple-script characters in
+`.key-learning-char` spans for the existing reveal effect. For Arabic, Bengali,
+and Devanagari text, the renderer preserves the full escaped text run instead
+of splitting every character, because per-character spans can break shaping and
+combining marks.
+
 This file is shared by all strategies. Strategy files should not generate full HTML directly.
 
 ## Media Helpers

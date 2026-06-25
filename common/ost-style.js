@@ -1,5 +1,17 @@
 export const OST_ANIMATION = { fadeIn: 0.5, fadeOut: 0.5 };
 
+const TEXT_FONT_STACK =
+  "'Noto Sans', 'Noto Sans Arabic', 'Noto Sans Bengali', 'Noto Sans Devanagari', 'Noto Sans JP', 'Inter', 'Geist', 'Nirmala UI', 'Yu Gothic', 'Meiryo', 'Segoe UI', Arial, sans-serif";
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 export function buildOstClipHtml({ baseAttrs, clipId, content }) {
   const wrapperStyle = [
     "position: absolute",
@@ -86,7 +98,7 @@ export function buildOstClipHtml({ baseAttrs, clipId, content }) {
     "width: max-content",
     "max-width: 959px",
     "color: #FFFFFF",
-    "font-family: 'Inter', 'Geist', sans-serif",
+    `font-family: ${TEXT_FONT_STACK}`,
     "font-style: normal",
     "font-weight: 500",
     "font-size: 55px",
@@ -95,8 +107,9 @@ export function buildOstClipHtml({ baseAttrs, clipId, content }) {
     "order: 0",
     "align-self: stretch",
     "flex-grow: 0",
+    "unicode-bidi: plaintext",
     "overflow-wrap: break-word",
   ].join("; ");
 
-  return `<div ${baseAttrs} style="${wrapperStyle}"><div id="${clipId}-chip" style="${mainFrameStyle}"><div style="${overlayContainerStyle}"><div style="${frameStyle}"><div style="${accentStyle}"></div><div style="${textFrameStyle}"><div style="${textStyle}">${content}</div></div></div></div></div></div>`;
+  return `<div ${baseAttrs} style="${wrapperStyle}"><div id="${clipId}-chip" style="${mainFrameStyle}"><div style="${overlayContainerStyle}"><div style="${frameStyle}"><div style="${accentStyle}"></div><div style="${textFrameStyle}"><div dir="auto" style="${textStyle}">${escapeHtml(content)}</div></div></div></div></div></div>`;
 }

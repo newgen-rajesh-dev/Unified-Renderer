@@ -1,5 +1,9 @@
 import { buildOstClipHtml } from "./ost-style.js";
 
+const TEXT_FONT_STACK =
+  "'Noto Sans', 'Noto Sans Arabic', 'Noto Sans Bengali', 'Noto Sans Devanagari', 'Noto Sans JP', 'Inter', 'Geist', 'Nirmala UI', 'Yu Gothic', 'Meiryo', 'Segoe UI', Arial, sans-serif";
+const COMPLEX_SCRIPT_PATTERN = /[\p{Script=Arabic}\p{Script=Bengali}\p{Script=Devanagari}]/u;
+
 function camelToKebab(str) {
   return str.replace(/([A-Z])/g, "-$1").toLowerCase();
 }
@@ -24,10 +28,15 @@ function escapeHtml(value) {
 }
 
 function buildCharacterSpans(value) {
-  return Array.from(String(value))
+  const text = String(value);
+  if (COMPLEX_SCRIPT_PATTERN.test(text)) {
+    return escapeHtml(text);
+  }
+
+  return Array.from(text)
     .map((char) => {
-      const text = char === " " ? "&nbsp;" : escapeHtml(char);
-      return `<span class="key-learning-char">${text}</span>`;
+      const rendered = char === " " ? "&nbsp;" : escapeHtml(char);
+      return `<span class="key-learning-char">${rendered}</span>`;
     })
     .join("");
 }
@@ -60,7 +69,7 @@ function buildKeyLearningsHtml({ baseAttrs, content }) {
         <div class="key-learning-point" data-point-index="${index}">
           <div class="key-learning-point-text">
             <span class="key-learning-bullet">&bull;</span>
-            <span class="key-learning-copy">${buildCharacterSpans(point)}</span>
+            <span class="key-learning-copy" dir="auto">${buildCharacterSpans(point)}</span>
           </div>
         </div>`,
     )
@@ -69,8 +78,8 @@ function buildKeyLearningsHtml({ baseAttrs, content }) {
   return `<div ${attrs}>
         <div class="key-learning-frame" style="--key-learning-title-font-size: ${titleFontSize}px; --key-learning-point-font-size: ${pointFontSize}px">
           <div class="key-learning-title">
-            <div class="key-learning-blue">${escapeHtml(content?.blue ?? "")}</div>
-            <div class="key-learning-green">${escapeHtml(content?.green ?? "")}</div>
+            <div class="key-learning-blue" dir="auto">${escapeHtml(content?.blue ?? "")}</div>
+            <div class="key-learning-green" dir="auto">${escapeHtml(content?.green ?? "")}</div>
           </div>
           <div class="key-learning-points">
             ${pointRows}
@@ -108,7 +117,7 @@ function buildClipHtml(clip) {
   if (type === "text") {
     const defaultStyle =
       "position: absolute; top: 0; left: 0; font-size: 64px; color: #fff; padding: 40px;";
-    return `<div ${baseAttrs} style="${defaultStyle} ${customStyle}">${content}</div>`;
+    return `<div ${baseAttrs} dir="auto" style="${defaultStyle} ${customStyle}">${escapeHtml(content)}</div>`;
   }
   if (type === "titleText") {
     const defaultStyle = [
@@ -119,16 +128,17 @@ function buildClipHtml(clip) {
       "justify-content: center",
       "padding: 140px",
       "color: #FFFFFF",
-      "font-family: 'Inter', 'Geist', sans-serif",
+      `font-family: ${TEXT_FONT_STACK}`,
       "font-size: 85px",
       "font-weight: 700",
       "line-height: 1.15",
       "text-align: center",
+      "unicode-bidi: plaintext",
       "overflow-wrap: break-word",
       "text-wrap: balance",
       "pointer-events: none",
     ].join("; ");
-    return `<div ${baseAttrs} style="${defaultStyle} ${customStyle}">${content}</div>`;
+    return `<div ${baseAttrs} dir="auto" style="${defaultStyle} ${customStyle}">${escapeHtml(content)}</div>`;
   }
   if (type === "keyLearnings") {
     return buildKeyLearningsHtml({ baseAttrs, content });
@@ -321,14 +331,13 @@ export function generateCompositionHtml(timelineData) {
   const animScript = buildAnimationScript(clips, id);
 
   return `<!doctype html>
-<html lang="en">
+<html lang="und">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=${width}, height=${height}" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;1,900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,500;0,700;1,900&family=Noto+Sans+Arabic:wght@400;500;700;900&family=Noto+Sans+Bengali:wght@400;500;700;900&family=Noto+Sans+Devanagari:wght@400;500;700;900&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -337,7 +346,7 @@ export function generateCompositionHtml(timelineData) {
         height: ${height}px;
         overflow: hidden;
         background: ${background};
-        font-family: 'Geist', sans-serif;
+        font-family: ${TEXT_FONT_STACK};
       }
       .clip { opacity: 0; }
       .key-learning-screen {
@@ -369,7 +378,7 @@ export function generateCompositionHtml(timelineData) {
       }
       .key-learning-blue,
       .key-learning-green {
-        font-family: 'Inter', sans-serif;
+        font-family: ${TEXT_FONT_STACK};
         font-style: italic;
         font-weight: 900;
         font-size: var(--key-learning-title-font-size, 166.32px);
@@ -377,6 +386,7 @@ export function generateCompositionHtml(timelineData) {
         letter-spacing: 0;
         text-transform: uppercase;
         font-variation-settings: 'slnt' -10;
+        unicode-bidi: plaintext;
         will-change: transform, opacity;
       }
       .key-learning-blue {
@@ -423,13 +433,14 @@ export function generateCompositionHtml(timelineData) {
         align-items: center;
         gap: 28px;
         padding: 0;
-        font-family: 'Inter', sans-serif;
+        font-family: ${TEXT_FONT_STACK};
         font-style: normal;
         font-weight: 400;
         font-size: var(--key-learning-point-font-size, 62px);
         line-height: 75px;
         color: #000000;
         white-space: nowrap;
+        unicode-bidi: plaintext;
       }
       .key-learning-bullet {
         flex: 0 0 auto;

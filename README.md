@@ -179,6 +179,12 @@ All fields are required:
 | `keyLearnings.green` | Yes | Green title word, localized by the caller |
 | `keyLearnings.points` | Yes | Exactly four non-empty point strings |
 
+### Localized Text
+
+Text fields are UTF-8 and may contain localized copy, including Latin-script text, Arabic, Bengali, Devanagari/Hindi/Nepali, and Japanese. The renderer applies automatic text direction on rendered text overlays and uses Noto Sans families for multilingual script coverage.
+
+The renderer does not translate copy or synthesize narration. Send already-localized `titleCard.titleText`, `keyLearnings.blue`, `keyLearnings.green`, `keyLearnings.points`, and scene `ost` text. For `L1L2` narration, send localized audio in each scene's `audio` field.
+
 ### Scenes
 
 Use `scenes` for scene arrays. `sections` is not accepted.
