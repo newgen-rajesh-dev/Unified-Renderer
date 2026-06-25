@@ -225,11 +225,13 @@ function buildAnimationScript(clips, compositionId) {
 
       if (type === "ost") {
         const chipSel = `#${id}-chip`;
+        const end = truncateDuration(start + duration);
         return [
           `  tl.fromTo("#${id}", { opacity: 0 }, { opacity: 1, duration: 0 }, ${start});`,
-          `  tl.to("#${id}", { opacity: 0, duration: 0 }, ${start + duration});`,
+          `  tl.to("#${id}", { opacity: 0, duration: 0 }, ${end});`,
           `  tl.fromTo("${chipSel}", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: ${fadeIn}, ease: "power3.out" }, ${start});`,
-          `  tl.to("${chipSel}", { opacity: 0, duration: ${fadeOut}, ease: "power2.in" }, ${start + duration - fadeOut});`,
+          `  tl.to("${chipSel}", { opacity: 0, duration: ${fadeOut}, ease: "power2.in" }, ${truncateDuration(end - fadeOut)});`,
+          `  tl.set("${chipSel}", { opacity: 0 }, ${end});`,
         ].join("\n");
       }
 
@@ -251,15 +253,18 @@ function buildAnimationScript(clips, compositionId) {
           `  tl.fromTo("#${id} .key-learning-green", { x: -260, opacity: 0 }, { x: 0, opacity: 1, duration: 0.72, ease: "expo.out" }, ${truncateDuration(start + 0.35)});`,
           pointTweens,
           `  tl.to("#${id}", { opacity: 0, duration: ${fadeOut}, ease: "power2.in" }, ${pointHoldEnd});`,
+          `  tl.set("#${id}", { opacity: 0 }, ${truncateDuration(start + duration)});`,
         ].join("\n");
       }
 
       const hold = duration - fadeIn - fadeOut;
+      const end = truncateDuration(start + duration);
       return [
         `  tl.fromTo("#${id}", { opacity: 0 }, { opacity: 1, duration: ${fadeIn} }, ${start});`,
         hold > 0
-          ? `  tl.to("#${id}", { opacity: 0, duration: ${fadeOut} }, ${start + fadeIn + hold});`
-          : `  tl.to("#${id}", { opacity: 0, duration: ${fadeOut} }, ${start + fadeIn});`,
+          ? `  tl.to("#${id}", { opacity: 0, duration: ${fadeOut} }, ${truncateDuration(start + fadeIn + hold)});`
+          : `  tl.to("#${id}", { opacity: 0, duration: ${fadeOut} }, ${truncateDuration(start + fadeIn)});`,
+        `  tl.set("#${id}", { opacity: 0 }, ${end});`,
       ].join("\n");
     })
     .join("\n");

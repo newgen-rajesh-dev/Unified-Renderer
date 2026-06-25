@@ -1,0 +1,22 @@
+diff --git a/dist/cli.js b/dist/cli.js
+index cfdf4e9218a974096cbce7cacb172198cc4611e9..b7bb69858c07d7608e792eadf516ff498b9e2632 100644
+--- a/dist/cli.js
++++ b/dist/cli.js
+@@ -39054,7 +39054,7 @@ function getFrameAtTime(extracted, globalTime, videoStart, loop = false, mediaSt
+     localTime %= loopDuration;
+   }
+   const frameIndex = Math.floor(localTime * extracted.fps + 1e-9);
+-  if (loop && frameIndex >= extracted.totalFrames && extracted.totalFrames > 0) {
++  if (frameIndex >= extracted.totalFrames && extracted.totalFrames > 0) {
+     return extracted.framePaths.get(extracted.totalFrames - 1) || null;
+   }
+   if (frameIndex < 0 || frameIndex >= extracted.totalFrames) return null;
+@@ -39165,7 +39165,7 @@ var init_videoFrameExtractor = __esm({
+             continue;
+           }
+           if (frameIndex < 0 || frameIndex >= video.extracted.totalFrames) {
+-            if (globalTime >= video.end && video.extracted.totalFrames > 0) {
++            if (frameIndex >= video.extracted.totalFrames && video.extracted.totalFrames > 0) {
+               const lastIndex = video.extracted.totalFrames - 1;
+               const lastPath = video.extracted.framePaths.get(lastIndex);
+               if (lastPath) frames.set(videoId, { framePath: lastPath, frameIndex: lastIndex });

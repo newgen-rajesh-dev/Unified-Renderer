@@ -247,12 +247,16 @@ export async function prepareAssets(
 
   // --- Build clips ---
   // Track layout:
-  //   90  — intro video
-  //   100 — title card + section videos (main content)
-  //   110 — outro video
-  //   200 — OST chips
-  //   250 — title card text overlay
-  //   300 - logo image (full span)
+  //   100+  — visual videos, one unique track per segment
+  //   10000 — OST chips
+  //   11000 — title/key-learnings overlays
+  //   12000 — logo image (full span)
+  const VISUAL_TRACK_BASE = 100;
+  const OST_TRACK_INDEX = 10000;
+  const OVERLAY_TRACK_INDEX = 11000;
+  const LOGO_TRACK_INDEX = 12000;
+  let nextVisualTrackIndex = VISUAL_TRACK_BASE;
+  const allocateVisualTrack = () => nextVisualTrackIndex++;
 
   const mainDuration = truncateDuration(
     titleCardDuration +
@@ -270,7 +274,7 @@ export async function prepareAssets(
       start: 0,
       duration: introDuration,
       mediaDuration: introDuration,
-      trackIndex: 90,
+      trackIndex: allocateVisualTrack(),
       animation: { fadeIn: 0, fadeOut: 0 },
     });
   }
@@ -286,7 +290,7 @@ export async function prepareAssets(
       start: cursor,
       duration: titleCardDuration,
       mediaDuration: titleCardDuration,
-      trackIndex: 100,
+      trackIndex: allocateVisualTrack(),
       animation: { fadeIn: 0, fadeOut: 0 },
     });
     clips.push({
@@ -295,13 +299,14 @@ export async function prepareAssets(
       content: l3l4.titleCard.titleText,
       start: cursor,
       duration: titleCardDuration,
-      trackIndex: 250,
+      trackIndex: OVERLAY_TRACK_INDEX,
       animation: { fadeIn: 0.3, fadeOut: 0.3 },
     });
     cursor = truncateDuration(cursor + titleCardDuration);
   }
 
-  for (const section of sectionVideos) {
+  for (let sectionIndex = 0; sectionIndex < sectionVideos.length; sectionIndex += 1) {
+    const section = sectionVideos[sectionIndex];
     clips.push({
       id: `l3l4-section-${section.idx}-video`,
       type: "video",
@@ -309,7 +314,7 @@ export async function prepareAssets(
       start: cursor,
       duration: section.duration,
       mediaDuration: section.duration,
-      trackIndex: 100,
+      trackIndex: allocateVisualTrack(),
       animation: { fadeIn: 0, fadeOut: 0 },
     });
     if (section.ost) {
@@ -319,7 +324,7 @@ export async function prepareAssets(
         content: section.ost,
         start: cursor,
         duration: section.duration,
-        trackIndex: 200,
+        trackIndex: OST_TRACK_INDEX,
         animation: OST_ANIMATION,
       });
     }
@@ -334,7 +339,7 @@ export async function prepareAssets(
       start: cursor,
       duration: keyLearningsDuration,
       mediaDuration: keyLearningsDuration,
-      trackIndex: 100,
+      trackIndex: allocateVisualTrack(),
       animation: { fadeIn: 0, fadeOut: 0 },
     });
     clips.push({
@@ -343,7 +348,7 @@ export async function prepareAssets(
       content: l3l4.keyLearnings,
       start: cursor,
       duration: keyLearningsDuration,
-      trackIndex: 250,
+      trackIndex: OVERLAY_TRACK_INDEX,
       animation: { fadeIn: 0.3, fadeOut: 0.3 },
     });
     cursor = truncateDuration(cursor + keyLearningsDuration);
@@ -358,7 +363,7 @@ export async function prepareAssets(
       start: introDuration + mainDuration,
       duration: outroDuration,
       mediaDuration: outroDuration,
-      trackIndex: 110,
+      trackIndex: allocateVisualTrack(),
       animation: { fadeIn: 0, fadeOut: 0 },
     });
   }
@@ -371,7 +376,7 @@ export async function prepareAssets(
       content: logoRel,
       start: 0,
       duration: totalDuration,
-      trackIndex: 300,
+      trackIndex: LOGO_TRACK_INDEX,
       animation: { fadeIn: 0, fadeOut: 0 },
     });
   }

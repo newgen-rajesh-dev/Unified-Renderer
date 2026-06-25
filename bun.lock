@@ -6,9 +6,12 @@
       "name": "rendering-server",
       "devDependencies": {
         "esbuild": "^0.28.0",
-        "hyperframes": "0.6.69",
+        "hyperframes": "0.7.6",
       },
     },
+  },
+  "patchedDependencies": {
+    "hyperframes@0.7.6": "patches/hyperframes@0.7.6.patch",
   },
   "packages": {
     "@emnapi/runtime": ["@emnapi/runtime@1.10.0", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-ewvYlk86xUoGI0zQRNq/mC+16R1QeDlKQy21Ki3oSYXNgLb45GV1P6A0M+/s6nyCuNDqe5VpaY84BzXGwVbwFA=="],
@@ -297,7 +300,7 @@
 
     "https-proxy-agent": ["https-proxy-agent@7.0.6", "", { "dependencies": { "agent-base": "^7.1.2", "debug": "4" } }, "sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw=="],
 
-    "hyperframes": ["hyperframes@0.6.69", "", { "dependencies": { "@hono/node-server": "^1.8.0", "@puppeteer/browsers": "^2.13.0", "adm-zip": "^0.5.16", "citty": "^0.2.1", "compare-versions": "^6.1.1", "esbuild": "^0.25.12", "fontkit": "^2.0.4", "giget": "^3.2.0", "hono": "^4.0.0", "onnxruntime-node": "^1.20.0", "open": "^10.0.0", "postcss": "^8.5.8", "prettier": "^3.8.1", "puppeteer-core": "^24.39.1", "sharp": "^0.34.5" }, "optionalDependencies": { "@google/genai": "^1.50.1" }, "bin": { "hyperframes": "dist/cli.js" } }, "sha512-/zOLuwKfWAdsN2gpQ40Bx07U1WokGXWYW5xxLNy+xM7hZeowjssa2L4Gjkos6myr5fk0biccXWzaRWkbx4l4gA=="],
+    "hyperframes": ["hyperframes@0.7.6", "", { "dependencies": { "@hono/node-server": "^1.8.0", "@puppeteer/browsers": "^2.13.0", "adm-zip": "^0.5.16", "citty": "^0.2.1", "compare-versions": "^6.1.1", "debug": "^4.4.0", "esbuild": "^0.25.12", "fontkit": "^2.0.4", "giget": "^3.2.0", "hono": "^4.0.0", "onnxruntime-node": "^1.20.0", "open": "^10.0.0", "postcss": "^8.5.8", "prettier": "^3.8.1", "puppeteer-core": "^24.39.1", "sharp": "^0.34.5" }, "optionalDependencies": { "@google/genai": "^1.50.1" }, "bin": { "hyperframes": "dist/cli.js" } }, "sha512-/Q63OhQZRzXf5Xl3h/9ZvG6uXlYxY9YPxbK1V9aTlmfgCptYsLdnY5K8lfu/XrTJ4ZzbaNWKY3oV2WSPaBY4Gg=="],
 
     "ip-address": ["ip-address@10.2.0", "", {}, "sha512-/+S6j4E9AHvW9SWMSEY9Xfy66O5PWvVEJ08O0y5JGyEKQpojb0K0GKpz/v5HJ/G0vi3D2sjGK78119oXZeE0qA=="],
 

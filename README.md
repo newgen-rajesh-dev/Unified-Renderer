@@ -46,12 +46,27 @@ Stop-Process -Id (Get-NetTCPConnection -LocalPort 3001).OwningProcess -Force
 | --- | --- | --- |
 | `PORT` | `3001` | HTTP server port |
 | `CORS_ORIGIN` | `*` | CORS origin |
+| `MAX_CONCURRENT_RENDERS` | `3` | Maximum number of render jobs processed concurrently |
+| `JOB_TIMEOUT_MS` | `1200000` | Queue/job timeout in milliseconds before a pending or running job is failed |
+| `RENDER_TIMEOUT_MS` | `900000` | HyperFrames render process timeout in milliseconds |
+| `RENDER_QUALITY` | `standard` | Render quality passed to HyperFrames |
+| `FFMPEG_PRESET` | `veryfast` | ffmpeg preset for video re-encoding |
 | `AWS_ACCESS_KEY` | none | AWS access key used by Bun's S3 client |
 | `AWS_SECRET_KEY` | none | AWS secret key used by Bun's S3 client |
 | `AWS_S3_BUCKET` | none | S3 bucket for completed MP4 uploads |
 | `AWS_S3_REGION` | none | AWS region for the S3 bucket, for example `us-east-1` |
-| `RENDER_QUALITY` | `standard` | Render quality passed to HyperFrames |
-| `FFMPEG_PRESET` | `veryfast` | ffmpeg preset for video re-encoding |
+
+The service also passes HyperFrames producer environment variables through to
+the local `hyperframes render` process. Common production tuning variables are:
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `PRODUCER_MAX_WORKERS` | `6` | Maximum HyperFrames frame capture workers |
+| `PRODUCER_ENABLE_BROWSER_POOL` | `true` | Enables HyperFrames browser pooling |
+| `PRODUCER_PUPPETEER_LAUNCH_TIMEOUT_MS` | `180000` | Puppeteer browser launch timeout |
+| `PRODUCER_PUPPETEER_PROTOCOL_TIMEOUT_MS` | `300000` | Chrome DevTools protocol timeout |
+| `PRODUCER_PLAYER_READY_TIMEOUT_MS` | `90000` | Timeout for the HyperFrames player to become ready |
+| `PRODUCER_RENDER_READY_TIMEOUT_MS` | `60000` | Timeout for render readiness checks |
 
 Completed videos are uploaded to S3 under `renders/<jobId>/<fileName>`. Job metadata stores that object key in `uploadedKey` and an AWS virtual-hosted object URL in `uploadedUrl`.
 
