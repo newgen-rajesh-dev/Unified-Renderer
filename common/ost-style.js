@@ -19,7 +19,7 @@ export function buildOstClipHtml({ baseAttrs, clipId, content }) {
     "display: flex",
     "flex-direction: column",
     "align-items: flex-start",
-    "padding: 644px 0 0",
+    "padding: 710px 0 0",
     "gap: 10px",
     "pointer-events: none",
   ].join("; ");
