@@ -12,7 +12,7 @@ export function probeHasAudio(filePath) {
     let out = '';
     proc.stdout.on('data', (d) => { out += d.toString(); });
     proc.on('error', () => resolve(false));
-    proc.on('close', () => resolve(out.trim() === 'audio'));
+    proc.on('close', () => resolve(out.trim().split(/\s+/).includes('audio')));
   });
 }
 
@@ -196,6 +196,62 @@ export async function stretchVideoToDuration(
   });
 
   console.log(`[ClipStretchCompleted][${jobId}] Slowed ${label} to match narration audio`);
+}
+
+export async function concatenateTimelineVideos(
+  segments,
+  outputPath,
+  { width = 1920, height = 1080, jobId = 'unknown', label = 'timeline-video' } = {},
+) {
+  if (!Array.isArray(segments) || segments.length === 0) {
+    throw new Error(`No video segments provided for ${label}`);
+  }
+
+  const inputs = [];
+  const filterParts = [];
+  const concatInputs = [];
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index];
+    if (!segment?.inputPath || !segment?.duration || segment.duration <= 0) {
+      throw new Error(`Invalid segment ${index} for ${label}`);
+    }
+    inputs.push('-i', segment.inputPath);
+    filterParts.push(
+      `[${index}:v]trim=duration=${Number(segment.duration).toFixed(3)},setpts=PTS-STARTPTS,fps=30,scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuv420p[v${index}]`,
+    );
+    concatInputs.push(`[v${index}]`);
+  }
+  filterParts.push(`${concatInputs.join('')}concat=n=${segments.length}:v=1:a=0[vout]`);
+
+  const args = [
+    '-y',
+    ...inputs,
+    '-filter_complex', filterParts.join(';'),
+    '-map', '[vout]',
+    '-an',
+    '-c:v', 'libx264',
+    '-preset', process.env.FFMPEG_PRESET || 'veryfast',
+    '-r', '30',
+    '-g', '30',
+    '-keyint_min', '30',
+    '-pix_fmt', 'yuv420p',
+    '-movflags', '+faststart',
+    outputPath,
+  ];
+
+  await new Promise((resolve, reject) => {
+    console.log(`[TimelineConcatStarted][${jobId}] Concatenating ${segments.length} segment(s) for ${label}`);
+    const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stderr = '';
+    proc.stderr.on('data', (d) => { stderr += d.toString(); });
+    proc.on('error', (err) => reject(new Error(`ffmpeg concat spawn failed: ${err.message}`)));
+    proc.on('close', (code) => {
+      if (code === 0) return resolve();
+      reject(new Error(`ffmpeg concat failed (code ${code}): ${stderr.slice(-600)}`));
+    });
+  });
+
+  console.log(`[TimelineConcatCompleted][${jobId}] Concatenated ${label}`);
 }
 
 export async function applyBackgroundMusic({
