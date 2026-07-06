@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { randomUUID } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'crypto';
 import { runRender } from './common/render.js';
 import { createJobStore } from './common/job-store.js';
 import { createAssetCache } from './common/asset-cache.js';
@@ -54,6 +54,8 @@ const reservedRenderFileNames = new Set();
 // completes, fails, or times out frees its slot and the next queued job starts.
 const MAX_CONCURRENT_RENDERS = Number(process.env.MAX_CONCURRENT_RENDERS) || 3;
 const JOB_TIMEOUT_MS = Number(process.env.JOB_TIMEOUT_MS) || 20 * 60 * 1000;
+const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+const RENDER_API_KEY = (process.env.RENDER_API_KEY || '').trim();
 const renderQueue = [];
 let activeRenders = 0;
 
@@ -63,10 +65,10 @@ await fs.mkdir(ASSET_CACHE_DIR, { recursive: true });
 const jobStore = createJobStore(JOBS_DB_PATH);
 const assetCache = createAssetCache(ASSET_CACHE_DIR);
 
-function jsonResponse(data, status = 200) {
+function jsonResponse(data, status = 200, req = null) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
-    headers: jsonHeaders(),
+    headers: jsonHeaders(req),
   });
 }
 
@@ -74,26 +76,71 @@ function notFound(message = 'Not found') {
   return jsonResponse({ error: message }, 404);
 }
 
-function corsHeaders() {
+function configuredCorsOrigins() {
+  return CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean);
+}
+
+function isOriginAllowed(origin) {
+  const allowedOrigins = configuredCorsOrigins();
+  return allowedOrigins.includes('*') || (origin && allowedOrigins.includes(origin));
+}
+
+function corsHeaders(req = null) {
+  const allowedOrigins = configuredCorsOrigins();
+  const requestOrigin = req?.headers?.get('Origin') || '';
+  const allowOrigin = allowedOrigins.includes('*')
+    ? '*'
+    : isOriginAllowed(requestOrigin) && requestOrigin
+      ? requestOrigin
+      : allowedOrigins[0] || '*';
   return {
-    'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
+    'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Render-Api-Key',
+    'Vary': 'Origin',
   };
 }
 
-function jsonHeaders() {
+function jsonHeaders(req = null) {
   return {
     'Content-Type': 'application/json',
-    ...corsHeaders(),
+    ...corsHeaders(req),
   };
 }
 
-function optionsResponse() {
+function optionsResponse(req) {
+  if (!isOriginAllowed(req.headers.get('Origin'))) {
+    return jsonResponse({ error: 'Origin not allowed' }, 403, req);
+  }
+
   return new Response(null, {
     status: 204,
-    headers: corsHeaders(),
+    headers: corsHeaders(req),
   });
+}
+
+function safeStringEqual(a, b) {
+  const left = Buffer.from(String(a));
+  const right = Buffer.from(String(b));
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+function getRenderApiKey(req) {
+  const authHeader = req.headers.get('Authorization') || '';
+  const bearerToken = authHeader.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  return bearerToken || req.headers.get('X-Render-Api-Key')?.trim() || '';
+}
+
+function requireRenderApiKey(req) {
+  if (!RENDER_API_KEY) {
+    return jsonResponse({ error: 'RENDER_API_KEY is not configured on the renderer.' }, 503, req);
+  }
+
+  if (!safeStringEqual(getRenderApiKey(req), RENDER_API_KEY)) {
+    return jsonResponse({ error: 'Unauthorized render request' }, 401, req);
+  }
+
+  return null;
 }
 
 export async function buildUniqueOutputPath(strategyName, rendersDir) {
@@ -128,19 +175,22 @@ export async function buildUniqueOutputPath(strategyName, rendersDir) {
 }
 
 async function handleRender(req) {
+  const authError = requireRenderApiKey(req);
+  if (authError) return authError;
+
   console.log('[PayloadReceived][pending] JSON payload received on POST /render');
   let rawPayload;
   try {
     rawPayload = await req.json();
   } catch {
-    return jsonResponse({ error: 'Invalid JSON body' }, 400);
+    return jsonResponse({ error: 'Invalid JSON body' }, 400, req);
   }
 
   let timelineData;
   try {
     timelineData = normalizeTimelineInput(rawPayload);
   } catch (err) {
-    return jsonResponse({ error: err.message }, 422);
+    return jsonResponse({ error: err.message }, 422, req);
   }
 
   if (!timelineData.id) {
@@ -150,7 +200,7 @@ async function handleRender(req) {
     return jsonResponse({
       error: 'Field "id" is required, or send a strategy payload with "scenes":[...].',
       received: receivedShape,
-    }, 422);
+    }, 422, req);
   }
 
   const callbackUrl =
@@ -160,7 +210,7 @@ async function handleRender(req) {
   if (!callbackUrl) {
     return jsonResponse({
       error: 'Field "callbackUrl" is required. The renderer accepts the job and POSTs the result to this URL when done.',
-    }, 422);
+    }, 422, req);
   }
 
   // Opaque correlation id supplied by the caller. The renderer does not
@@ -231,7 +281,7 @@ async function handleRender(req) {
     compositionId: job.compositionId,
     createdAt: job.createdAt,
     statusUrl: job.statusUrl,
-  }, 202);
+  }, 202, req);
 }
 
 async function startJobPipeline({ jobId, timelineData, compositionDir, artifactsDir, compositionPath, mainArtifactPath }) {
@@ -396,7 +446,7 @@ Bun.serve({
     const url = new URL(req.url);
     const { pathname, method } = { pathname: url.pathname, method: req.method };
 
-    if (method === 'OPTIONS') return optionsResponse();
+    if (method === 'OPTIONS') return optionsResponse(req);
 
     if (pathname === '/health' && method === 'GET') return handleHealth();
     if (pathname === '/render' && method === 'POST') return handleRender(req);

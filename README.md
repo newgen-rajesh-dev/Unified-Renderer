@@ -30,6 +30,7 @@ PORT=3002 bun run dev
 Additional commands:
 
 ```bash
+bun run generate-api-key
 bun run check
 bun run render
 bun run publish
@@ -45,7 +46,8 @@ Stop-Process -Id (Get-NetTCPConnection -LocalPort 3001).OwningProcess -Force
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PORT` | `3001` | HTTP server port |
-| `CORS_ORIGIN` | `*` | CORS origin |
+| `CORS_ORIGIN` | `*` | Browser CORS origin returned in `Access-Control-Allow-Origin`; set this to your app origin (for example `https://app.example.com`) instead of `*` in production |
+| `RENDER_API_KEY` | none | Required shared secret for `POST /render`; requests must send it as `Authorization: Bearer <key>` or `X-Render-Api-Key: <key>` |
 | `MAX_CONCURRENT_RENDERS` | `3` | Maximum number of render jobs processed concurrently |
 | `JOB_TIMEOUT_MS` | `1200000` | Queue/job timeout in milliseconds before a pending or running job is failed |
 | `RENDER_TIMEOUT_MS` | `900000` | HyperFrames render process timeout in milliseconds |
@@ -70,6 +72,55 @@ the local `hyperframes render` process. Common production tuning variables are:
 
 Completed videos are uploaded to S3 under `renders/<jobId>/<fileName>`. Job metadata stores that object key in `uploadedKey` and an AWS virtual-hosted object URL in `uploadedUrl`.
 
+## Security
+
+`POST /render` requires `RENDER_API_KEY`.
+
+### Generate an API key
+
+Run this command manually when you need a new key:
+
+```bash
+bun run generate-api-key
+```
+
+The command prints one random 32-byte hex key immediately, for example:
+
+```text
+1c2295f7ebcb5d9251adb880357491b12823afb5e16c1343bf8e6e869eac0a9c
+```
+
+The generator does not save the key anywhere. Copy the printed value into your
+secret store, deployment environment variables, `.env` file, or process manager
+configuration.
+
+### Configure the renderer
+
+Set the same key on the renderer process:
+
+```bash
+RENDER_API_KEY=<generated-key>
+CORS_ORIGIN=https://your-app.example.com
+```
+
+At startup, `server.js` reads `process.env.RENDER_API_KEY` and keeps that value
+in memory. For every `POST /render`, it compares the request header value against
+that configured environment value.
+
+Send the key with each render request using either header:
+
+```http
+Authorization: Bearer <generated-key>
+X-Render-Api-Key: <generated-key>
+```
+
+If `RENDER_API_KEY` is missing on the renderer, `POST /render` returns `503`. If
+the request header is missing or wrong, it returns `401`.
+
+Do not put this key in browser/frontend code. The caller should be a trusted
+backend service that can keep the key secret. CORS remains a browser access
+control, but the API key is the actual authorization check.
+
 ## Endpoints
 
 | Method | Path | Description |
@@ -86,9 +137,9 @@ Completed videos are uploaded to S3 under `renders/<jobId>/<fileName>`. Job meta
 render. The flow is:
 
 1. The caller POSTs a payload that includes a `callbackUrl` (and usually a
-   `callbackId` to correlate the result).
-2. The server validates the payload, creates the job, and responds **immediately**
-   with `202` and `{ jobId, status: "rendering", accepted: true, statusUrl }`.
+   `callbackId` to correlate the result) plus the `RENDER_API_KEY` header.
+2. The server authorizes the request, validates the payload, creates the job,
+   and responds **immediately** with `202` and `{ jobId, status: "rendering", accepted: true, statusUrl }`.
 3. The render runs in the background (prepare assets → render → bg music → upload to S3).
 4. When the job reaches a terminal state, the server makes **one** `POST` to the
    caller's `callbackUrl` with the result (no retries). The payload's `type` and
