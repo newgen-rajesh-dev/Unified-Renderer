@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run server.js",
+    "generate-api-key": "bun -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
     "check": "bun run hyperframes lint && bun run hyperframes validate && bun run hyperframes inspect",
     "render": "bun run hyperframes render",
     "publish": "bun run hyperframes publish"
