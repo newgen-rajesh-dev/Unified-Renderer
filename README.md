@@ -70,7 +70,7 @@ the local `hyperframes render` process. Common production tuning variables are:
 | `PRODUCER_PLAYER_READY_TIMEOUT_MS` | `90000` | Timeout for the HyperFrames player to become ready |
 | `PRODUCER_RENDER_READY_TIMEOUT_MS` | `60000` | Timeout for render readiness checks |
 
-Completed videos are copied to local `renders/<fileName>` and uploaded to S3 under `renders/<jobId>/<fileName>`. If the payload includes `filename`, that value names the MP4; otherwise the service generates a timestamped name. Job metadata stores the S3 object key in `uploadedKey`, the final file name in `reservedOutputFileName`, and an AWS virtual-hosted object URL in `uploadedUrl`.
+Completed videos are uploaded to S3 under `renders/<jobId>/<fileName>`. The MP4 is written to a transient local `renders/<fileName>` only so the upload can read it, then deleted once the upload succeeds — S3 is the source of truth and nothing accumulates on disk. (On upload failure the local file is kept for recovery.) If the payload includes `filename`, that value names the MP4; otherwise the service generates a timestamped name. Job metadata stores the S3 object key in `uploadedKey`, the final file name in `reservedOutputFileName`, and an AWS virtual-hosted object URL in `uploadedUrl`.
 
 ## Security
 
@@ -129,7 +129,8 @@ control, but the API key is the actual authorization check.
 | `POST` | `/render` | Accepts a render job and returns immediately (`202`); renders in the background and POSTs the result to `callbackUrl` |
 | `GET` | `/status/:jobId` | Returns public metadata for one job |
 | `GET` | `/jobs` | Lists persisted jobs, newest first |
-| `GET` | `/renders/:file` | Downloads a rendered MP4 from `renders/`; URL-encode custom file names when needed |
+
+Completed videos are fetched from S3 via the `uploadedUrl` returned in job status and the callback; there is no local download endpoint.
 
 ## Render Lifecycle (async + callback)
 
@@ -140,7 +141,7 @@ render. The flow is:
    `callbackId` to correlate the result) plus the `RENDER_API_KEY` header.
 2. The server authorizes the request, validates the payload, creates the job,
    and responds **immediately** with `202` and `{ jobId, status: "rendering", accepted: true, statusUrl, requestedFileName }`.
-3. The render runs in the background (prepare assets → render → bg music → copy to `renders/<fileName>` → upload to S3).
+3. The render runs in the background (prepare assets → render → bg music → upload to S3 → delete the transient local copy).
 4. When the job reaches a terminal state, the server makes **one** `POST` to the
    caller's `callbackUrl` with the result (no retries). The payload's `type` and
    the `callbackId` are echoed back so the caller can route the result without
@@ -184,7 +185,7 @@ The server accepts one JSON payload per `POST /render` request.
 | `id` | Yes | Stable render/composition id |
 | `callbackUrl` | Yes | URL the server POSTs the render result to when the job finishes (see Render Lifecycle) |
 | `callbackId` | No | Opaque correlation id echoed back in the callback so the caller can route the result (e.g. a project id or script id) |
-| `filename` | No | Requested final MP4 file name for both local `renders/` storage and the S3 key |
+| `filename` | No | Requested final MP4 file name used for the S3 key (and the transient local copy) |
 | `intro` | Conditional | Optional intro video link |
 | `outro` | Conditional | Optional outro video link |
 | `titleCard` | Conditional | Optional title card object |

@@ -27,9 +27,9 @@ with `202`, renders in the background, and POSTs the result to the payload's
 12. `server.js` writes a generated `hyperframes.json` into the job workspace.
 13. `common/render.js` runs HyperFrames render.
 14. If `bgMusic` exists, `common/media.js` applies it with ffmpeg.
-15. The final MP4 is copied into `renders/<fileName>`, where `fileName` is the caller-requested `filename` when provided or a generated timestamped name otherwise.
+15. The final MP4 is copied into a transient `renders/<fileName>`, where `fileName` is the caller-requested `filename` when provided or a generated timestamped name otherwise.
 16. `common/s3-upload.js` uploads the MP4 to AWS S3 with Bun's native S3 client.
-17. Completed job workspaces are removed.
+17. Completed job workspaces are removed, along with the transient `renders/<fileName>` copy once the upload has succeeded (kept on upload failure for recovery).
 18. `deliverCallback` (in `server.js`) makes one `POST` to the job's `callbackUrl` with the terminal result (`status`, `uploadedKey`, `uploadedUrl`, `fileName`, `error`, ...) plus the payload's `type` and `callbackId` echoed back for the caller to route on. Fire-and-forget, no retries; failures are logged. The result remains pollable at `GET /status/:jobId`.
 
 ## Entrypoint
@@ -237,10 +237,10 @@ Responsibilities:
 - run the locally installed HyperFrames CLI through Bun's package binary resolution
 - stream render logs into job state
 - apply optional background music
-- copy final output into `renders/` using the requested file name or generated fallback name
+- copy final output into a transient `renders/` file using the requested file name or generated fallback name
 - upload the MP4
 - mark job complete or failed
-- delete completed job workspaces
+- delete completed job workspaces and the transient `renders/` copy after a successful upload
 
 The render path uses `bun run hyperframes render <jobDir>` instead of `bunx`, so dependency resolution is stable on Windows and does not depend on Bun's temporary `bunx-*` cache.
 
@@ -297,7 +297,7 @@ Generated runtime folders:
 
 - `.jobs/`
 - `.asset-cache/`
-- `renders/`
+- `renders/` (holds each output only transiently — cleared after the S3 upload succeeds)
 
 These are not source folders.
 
