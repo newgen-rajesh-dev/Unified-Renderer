@@ -195,6 +195,7 @@ export async function prepareAssets(
       `[SectionDownloadStarted][${jobId}] Resolving section-${s.idx} source video`,
     );
     await assetCache.materialize(s.link, videoAbs, {
+      cache: false,
       fallbackExt: ".mp4",
       jobId,
       label: `section-${s.idx}`,

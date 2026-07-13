@@ -65,10 +65,20 @@ export function createAssetCache(cacheDir) {
   }
 
   async function materialize(url, destPath, options = {}) {
-    const cached = await ensureCached(url, options);
+    const { cache = true, ...rest } = options;
     await fs.mkdir(path.dirname(destPath), { recursive: true });
-    await fs.copyFile(cached.cachedPath, destPath);
-    return { ...cached, destPath };
+
+    // Per-video unique assets (scene media, narration) bypass the cache: they
+    // are never reused across jobs, so caching only bloats .asset-cache/.
+    if (!cache) {
+      const { fallbackExt: _ignored, ...downloadOpts } = rest;
+      await downloadToFile(url, destPath, downloadOpts);
+      return { cachedPath: destPath, cacheKey: null, cacheHit: false, cached: false, destPath };
+    }
+
+    const cachedResult = await ensureCached(url, rest);
+    await fs.copyFile(cachedResult.cachedPath, destPath);
+    return { ...cachedResult, cached: true, destPath };
   }
 
   return { ensureCached, materialize };

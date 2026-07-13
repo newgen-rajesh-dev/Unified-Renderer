@@ -259,9 +259,16 @@ File: `common/asset-cache.js`
 Responsibilities:
 
 - hash URL inputs
-- cache downloaded assets under `.asset-cache/`
+- cache reusable assets under `.asset-cache/`
 - avoid duplicate concurrent downloads
-- materialize cached assets into each job workspace
+- materialize assets into each job workspace
+
+`materialize(url, destPath, options)` caches by default. Only assets reused
+across videos are cached: `intro`, `outro`, `bgMusic`, `titleCard.vidSrc`,
+`keyLearnings.vidSrc`, and `logo`. Per-video unique assets — scene media
+(`scenes[].link`) and L1L2 scene narration (`scenes[].audio`) — pass
+`{ cache: false }`, which downloads straight to the job workspace and never
+touches `.asset-cache/`, so the cache does not bloat with one-off files.
 
 Strategies should use the asset cache instead of downloading directly.
 

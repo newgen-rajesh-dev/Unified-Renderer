@@ -229,6 +229,7 @@ export async function prepareAssets(
         : `[SectionImgDownloadStarted][${jobId}] Resolving section-${s.idx} image`,
     );
     await assetCache.materialize(s.link, imgAbs, {
+      cache: false,
       fallbackExt: s.type === "clip" ? ".mp4" : ".jpg",
       jobId,
       label: s.type === "clip" ? `section-${s.idx}-clip` : `section-${s.idx}-image`,
@@ -246,6 +247,7 @@ export async function prepareAssets(
       `[SectionAudioDownloadStarted][${jobId}] Resolving section-${s.idx} narration audio`,
     );
     await assetCache.materialize(s.audio, audioAbs, {
+      cache: false,
       fallbackExt: ".mp3",
       jobId,
       label: `section-${s.idx}-audio`,
