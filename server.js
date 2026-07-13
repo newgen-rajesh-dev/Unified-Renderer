@@ -444,24 +444,6 @@ async function deliverCallback(job) {
   }
 }
 
-async function handleRenderDownload(fileName) {
-  let decodedFileName;
-  try {
-    decodedFileName = decodeURIComponent(fileName);
-  } catch {
-    return jsonResponse({ error: 'Invalid render file name' }, 400);
-  }
-  const safe = path.basename(decodedFileName);
-  const absPath = path.join(RENDERS_DIR, safe);
-  try {
-    const file = Bun.file(absPath);
-    if (!(await file.exists())) return notFound(`File not found: ${safe}`);
-    return new Response(file, { headers: { 'Content-Type': 'video/mp4', ...corsHeaders() } });
-  } catch (err) {
-    return jsonResponse({ error: err.message }, 500);
-  }
-}
-
 function handleStatus(jobId) {
   const job = jobs.get(jobId) || jobStore.getJob(jobId);
   if (!job) return notFound(`Job "${jobId}" not found`);
@@ -500,10 +482,7 @@ Bun.serve({
     const statusMatch = pathname.match(/^\/status\/(.+)$/);
     if (statusMatch && method === 'GET') return handleStatus(statusMatch[1]);
 
-    const renderMatch = pathname.match(/^\/renders\/(.+)$/);
-    if (renderMatch && method === 'GET') return handleRenderDownload(renderMatch[1]);
-
-    return notFound('Unknown route. Available: POST /render, GET /status/:jobId, GET /renders/:file, GET /jobs, GET /health');
+    return notFound('Unknown route. Available: POST /render, GET /status/:jobId, GET /jobs, GET /health');
   },
 });
 

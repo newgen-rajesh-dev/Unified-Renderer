@@ -231,16 +231,36 @@ async function uploadCompletedVideo(
 
 async function cleanupCompletedJobWorkspace(jobId, jobs) {
   const job = jobs.get(jobId);
-  if (!job?.compositionDir) return;
+  if (!job) return;
 
-  try {
-    await fs.rm(job.compositionDir, { recursive: true, force: true });
-    console.log(
-      `[JobWorkspaceDeleted][${jobId}] Completed job workspace deleted`,
-    );
-  } catch (err) {
-    console.error(
-      `[JobWorkspaceDeleteFailed][${jobId}] Failed to delete completed job workspace: ${err.message}`,
-    );
+  if (job.compositionDir) {
+    try {
+      await fs.rm(job.compositionDir, { recursive: true, force: true });
+      console.log(
+        `[JobWorkspaceDeleted][${jobId}] Completed job workspace deleted`,
+      );
+    } catch (err) {
+      console.error(
+        `[JobWorkspaceDeleteFailed][${jobId}] Failed to delete completed job workspace: ${err.message}`,
+      );
+    }
+  }
+
+  // The local renders/ copy exists only to feed the S3 upload. Upload has
+  // succeeded by the time cleanup runs, so remove it — S3 is the source of
+  // truth (job.uploadedUrl). On upload failure this cleanup is skipped and
+  // the file is kept for recovery.
+  const renderedPath = job.outputPath || job.plannedOutputPath;
+  if (renderedPath) {
+    try {
+      await fs.rm(renderedPath, { force: true });
+      console.log(
+        `[RenderedFileDeleted][${jobId}] Local rendered file deleted after upload`,
+      );
+    } catch (err) {
+      console.error(
+        `[RenderedFileDeleteFailed][${jobId}] Failed to delete local rendered file: ${err.message}`,
+      );
+    }
   }
 }
