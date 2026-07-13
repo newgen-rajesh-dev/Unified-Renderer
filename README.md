@@ -57,6 +57,7 @@ Stop-Process -Id (Get-NetTCPConnection -LocalPort 3001).OwningProcess -Force
 | `AWS_SECRET_KEY` | none | AWS secret key used by Bun's S3 client |
 | `AWS_S3_BUCKET` | none | S3 bucket for completed MP4 uploads |
 | `AWS_S3_REGION` | none | AWS region for the S3 bucket, for example `us-east-1` |
+| `REQUEST_LOG_PATH` | `logs/requests.log` | File the request log is appended to |
 
 The service also passes HyperFrames producer environment variables through to
 the local `hyperframes render` process. Common production tuning variables are:
@@ -71,6 +72,16 @@ the local `hyperframes render` process. Common production tuning variables are:
 | `PRODUCER_RENDER_READY_TIMEOUT_MS` | `60000` | Timeout for render readiness checks |
 
 Completed videos are uploaded to S3 under `renders/<jobId>/<fileName>`. The MP4 is written to a transient local `renders/<fileName>` only so the upload can read it, then deleted once the upload succeeds — S3 is the source of truth and nothing accumulates on disk. (On upload failure the local file is kept for recovery.) If the payload includes `filename`, that value names the MP4; otherwise the service generates a timestamped name. Job metadata stores the S3 object key in `uploadedKey`, the final file name in `reservedOutputFileName`, and an AWS virtual-hosted object URL in `uploadedUrl`.
+
+### Request Log
+
+Every incoming HTTP request and every outbound callback POST is appended to `logs/requests.log` (override with `REQUEST_LOG_PATH`). Lines are timestamped and record the HTTP status; for callbacks, `accepted` reflects whether the caller answered with a `2xx`, and a network failure is logged as `ERR`. Writes are serialized and fire-and-forget — a logging failure never affects request handling.
+
+```
+2026-07-13T10:22:01.033Z [Incoming] 200 POST /render
+2026-07-13T10:22:48.900Z [Outgoing] 204 POST https://cb.example/cb — jobId=abc123 accepted=true status=complete
+2026-07-13T10:22:49.100Z [Outgoing] ERR POST https://cb.example/cb — jobId=abc123 accepted=false error="connect timeout"
+```
 
 ## Security
 

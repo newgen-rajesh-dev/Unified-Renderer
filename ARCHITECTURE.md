@@ -298,6 +298,19 @@ Responsibilities:
 - upload completed MP4 files to `renders/<jobId>/<fileName>`, where `<fileName>` is the final reserved local output name
 - return AWS S3 URL/key metadata
 
+## Request Log
+
+File: `common/request-log.js`
+
+Responsibilities:
+
+- append one line per incoming HTTP request (method, path, response status)
+- append one line per outbound callback POST (receiver status, `accepted`, or `ERR` on network failure)
+- serialize writes through a promise chain so concurrent jobs never interleave a line
+- fail silently to the console — a logging error never breaks request handling
+
+`server.js` wraps the `Bun.serve` handler to log every response and calls into the log from `deliverCallback`. Output goes to `logs/requests.log` (override with `REQUEST_LOG_PATH`).
+
 ## Generated Files
 
 Generated runtime folders:
@@ -305,6 +318,7 @@ Generated runtime folders:
 - `.jobs/`
 - `.asset-cache/`
 - `renders/` (holds each output only transiently — cleared after the S3 upload succeeds)
+- `logs/` (request log — `logs/requests.log`, or the `REQUEST_LOG_PATH` target)
 
 These are not source folders.
 

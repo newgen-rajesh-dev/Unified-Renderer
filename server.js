@@ -5,6 +5,7 @@ import { randomUUID, timingSafeEqual } from 'crypto';
 import { runRender } from './common/render.js';
 import { createJobStore } from './common/job-store.js';
 import { createAssetCache } from './common/asset-cache.js';
+import { createRequestLog } from './common/request-log.js';
 import { generateCompositionHtml } from './common/composition-html.js';
 import {
   normalizeTimelineInput as normalizeL3L4Input,
@@ -35,6 +36,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RENDERS_DIR = path.join(__dirname, 'renders');
 const JOBS_DIR = path.join(__dirname, '.jobs');
 const ASSET_CACHE_DIR = path.join(__dirname, '.asset-cache');
+const REQUEST_LOG_PATH = process.env.REQUEST_LOG_PATH || path.join(__dirname, 'logs', 'requests.log');
 const JOBS_DB_PATH = path.join(JOBS_DIR, 'jobs.sqlite');
 const HYPERFRAMES_CONFIG = {
   $schema: 'https://hyperframes.heygen.com/schema/hyperframes.json',
@@ -47,6 +49,7 @@ const HYPERFRAMES_CONFIG = {
 };
 const jobs = new Map();
 const reservedRenderFileNames = new Set();
+const requestLog = createRequestLog(REQUEST_LOG_PATH);
 
 // Render concurrency pool. Renders are CPU/Chrome heavy; firing too many at once
 // oversubscribes the box and Chrome calibration times out, leaving jobs hung
@@ -437,9 +440,21 @@ async function deliverCallback(job) {
     console.log(
       `[CallbackDelivered][${job.jobId}] POST ${job.callbackUrl} -> ${res.status} (status=${job.status})`,
     );
+    requestLog.logOutgoing(
+      new Date().toISOString(),
+      res.status,
+      job.callbackUrl,
+      `jobId=${job.jobId} accepted=${res.ok} status=${job.status}`,
+    );
   } catch (err) {
     console.error(
       `[CallbackFailed][${job.jobId}] POST ${job.callbackUrl} failed: ${err?.message || err}`,
+    );
+    requestLog.logOutgoing(
+      new Date().toISOString(),
+      'ERR',
+      job.callbackUrl,
+      `jobId=${job.jobId} accepted=false error="${err?.message || err}"`,
     );
   }
 }
@@ -467,22 +482,29 @@ function handleJobList() {
   return jsonResponse({ jobs: jobStore.listJobs() });
 }
 
+async function routeRequest(req, pathname, method) {
+  if (pathname === '/health' && method === 'GET') return handleHealth();
+  if (pathname === '/render' && method === 'POST') return handleRender(req);
+  if (pathname === '/jobs' && method === 'GET') return handleJobList();
+
+  const statusMatch = pathname.match(/^\/status\/(.+)$/);
+  if (statusMatch && method === 'GET') return handleStatus(statusMatch[1]);
+
+  return notFound('Unknown route. Available: POST /render, GET /status/:jobId, GET /jobs, GET /health');
+}
+
 Bun.serve({
   port: PORT,
   async fetch(req) {
     const url = new URL(req.url);
-    const { pathname, method } = { pathname: url.pathname, method: req.method };
+    const { pathname } = url;
+    const method = req.method;
 
     if (method === 'OPTIONS') return optionsResponse(req);
 
-    if (pathname === '/health' && method === 'GET') return handleHealth();
-    if (pathname === '/render' && method === 'POST') return handleRender(req);
-    if (pathname === '/jobs' && method === 'GET') return handleJobList();
-
-    const statusMatch = pathname.match(/^\/status\/(.+)$/);
-    if (statusMatch && method === 'GET') return handleStatus(statusMatch[1]);
-
-    return notFound('Unknown route. Available: POST /render, GET /status/:jobId, GET /jobs, GET /health');
+    const res = await routeRequest(req, pathname, method);
+    requestLog.logIncoming(new Date().toISOString(), res.status, method, pathname);
+    return res;
   },
 });
 
