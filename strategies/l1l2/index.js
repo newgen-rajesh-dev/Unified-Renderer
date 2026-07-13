@@ -1,6 +1,8 @@
 import { promises as fs } from "fs";
 import path from "path";
 import {
+  concatenateTimelineVideos,
+  probeHasAudio,
   probeMediaDuration,
   reencodeForSeek,
   stretchVideoToDuration,
@@ -326,9 +328,32 @@ export async function prepareAssets(
   //   100 — title card video + section images (main content)
   //   110 — outro video
   //   150 — section narration audio
+  //   160 — stitched-base embedded audio (intro/title/keyLearnings/outro)
   //   200 — OST chips
   //   250 — title card text overlay
   //   300 - logo image (full span)
+  const EMBEDDED_AUDIO_TRACK = 160;
+
+  // When every scene is a "clip", the main track is a run of adjacent <video>
+  // segments. HyperFrames extracts still frames per <video> and hands off at
+  // each boundary, producing black frames. Pre-concatenate all visual videos
+  // into one base track spanning the whole composition to avoid the handoffs
+  // (mirrors the L3/L4 strategy). Section narration stays on its own audio
+  // track; intro/title/keyLearnings/outro embedded audio is re-added separately.
+  const stitchVisualBase = scenes.length > 0 && scenes.every((s) => s.type === "clip");
+
+  const visualSegments = [];
+  const addVisualSegment = ({ id, relPath, duration, start, embedAudio = false }) => {
+    if (!relPath || !duration) return;
+    visualSegments.push({
+      id,
+      relPath,
+      inputPath: path.join(jobDir, relPath),
+      start,
+      duration,
+      embedAudio,
+    });
+  };
 
   const mainDuration = truncateDuration(
     titleCardDuration +
@@ -339,32 +364,40 @@ export async function prepareAssets(
 
   // Intro
   if (introRelPath) {
-    clips.push({
-      id: "l1l2-intro-video",
-      type: "video",
-      content: introRelPath,
-      start: 0,
-      duration: introDuration,
-      mediaDuration: introDuration,
-      trackIndex: 90,
-      animation: { fadeIn: 0, fadeOut: 0 },
-    });
+    if (stitchVisualBase) {
+      addVisualSegment({ id: "intro", relPath: introRelPath, start: 0, duration: introDuration, embedAudio: true });
+    } else {
+      clips.push({
+        id: "l1l2-intro-video",
+        type: "video",
+        content: introRelPath,
+        start: 0,
+        duration: introDuration,
+        mediaDuration: introDuration,
+        trackIndex: 90,
+        animation: { fadeIn: 0, fadeOut: 0 },
+      });
+    }
   }
 
   // Title card + scenes (offset by intro duration)
   let cursor = introDuration;
 
   if (titleCardRelPath) {
-    clips.push({
-      id: "l1l2-title-card-video",
-      type: "video",
-      content: titleCardRelPath,
-      start: cursor,
-      duration: titleCardDuration,
-      mediaDuration: titleCardDuration,
-      trackIndex: 100,
-      animation: { fadeIn: 0, fadeOut: 0 },
-    });
+    if (stitchVisualBase) {
+      addVisualSegment({ id: "title-card", relPath: titleCardRelPath, start: cursor, duration: titleCardDuration, embedAudio: true });
+    } else {
+      clips.push({
+        id: "l1l2-title-card-video",
+        type: "video",
+        content: titleCardRelPath,
+        start: cursor,
+        duration: titleCardDuration,
+        mediaDuration: titleCardDuration,
+        trackIndex: 100,
+        animation: { fadeIn: 0, fadeOut: 0 },
+      });
+    }
     clips.push({
       id: "l1l2-title-card-text",
       type: "titleText",
@@ -379,17 +412,28 @@ export async function prepareAssets(
 
   for (const section of scenes) {
     if (section.type === "clip") {
-      clips.push({
-        id: `l1l2-section-${section.idx}-clip`,
-        type: "video",
-        content: section.clipRel,
-        start: cursor,
-        duration: section.duration,
-        mediaDuration: section.duration,
-        trackIndex: 100,
-        animation: { fadeIn: 0, fadeOut: 0 },
-        hasAudio: false,
-      });
+      if (stitchVisualBase) {
+        // Section clip audio is the separate narration below, not embedded.
+        addVisualSegment({
+          id: `section-${section.idx}`,
+          relPath: section.clipRel,
+          start: cursor,
+          duration: section.duration,
+          embedAudio: false,
+        });
+      } else {
+        clips.push({
+          id: `l1l2-section-${section.idx}-clip`,
+          type: "video",
+          content: section.clipRel,
+          start: cursor,
+          duration: section.duration,
+          mediaDuration: section.duration,
+          trackIndex: 100,
+          animation: { fadeIn: 0, fadeOut: 0 },
+          hasAudio: false,
+        });
+      }
     } else {
       const panTiming = calculateImagePanTiming(section.duration);
       clips.push({
@@ -430,16 +474,20 @@ export async function prepareAssets(
   }
 
   if (keyLearningsRelPath) {
-    clips.push({
-      id: "l1l2-key-learnings-video",
-      type: "video",
-      content: keyLearningsRelPath,
-      start: cursor,
-      duration: keyLearningsDuration,
-      mediaDuration: keyLearningsDuration,
-      trackIndex: 100,
-      animation: { fadeIn: 0, fadeOut: 0 },
-    });
+    if (stitchVisualBase) {
+      addVisualSegment({ id: "key-learnings", relPath: keyLearningsRelPath, start: cursor, duration: keyLearningsDuration, embedAudio: true });
+    } else {
+      clips.push({
+        id: "l1l2-key-learnings-video",
+        type: "video",
+        content: keyLearningsRelPath,
+        start: cursor,
+        duration: keyLearningsDuration,
+        mediaDuration: keyLearningsDuration,
+        trackIndex: 100,
+        animation: { fadeIn: 0, fadeOut: 0 },
+      });
+    }
     clips.push({
       id: "l1l2-key-learnings-overlay",
       type: "keyLearnings",
@@ -454,16 +502,65 @@ export async function prepareAssets(
 
   // Outro
   if (outroRelPath) {
-    clips.push({
-      id: "l1l2-outro-video",
-      type: "video",
-      content: outroRelPath,
-      start: introDuration + mainDuration,
-      duration: outroDuration,
-      mediaDuration: outroDuration,
-      trackIndex: 110,
-      animation: { fadeIn: 0, fadeOut: 0 },
+    if (stitchVisualBase) {
+      addVisualSegment({
+        id: "outro",
+        relPath: outroRelPath,
+        start: introDuration + mainDuration,
+        duration: outroDuration,
+        embedAudio: true,
+      });
+    } else {
+      clips.push({
+        id: "l1l2-outro-video",
+        type: "video",
+        content: outroRelPath,
+        start: introDuration + mainDuration,
+        duration: outroDuration,
+        mediaDuration: outroDuration,
+        trackIndex: 110,
+        animation: { fadeIn: 0, fadeOut: 0 },
+      });
+    }
+  }
+
+  // All scenes are clips → concatenate the visual timeline into one base track
+  // spanning the whole composition, then re-add embedded audio for the
+  // non-scene segments (section narration is already on track 150).
+  if (stitchVisualBase && visualSegments.length > 0) {
+    const visualBaseRel = "assets/l1l2-visual-base.mp4";
+    const visualBaseAbs = path.join(jobDir, visualBaseRel);
+    await concatenateTimelineVideos(visualSegments, visualBaseAbs, {
+      width: l1l2.width,
+      height: l1l2.height,
+      jobId,
+      label: "l1l2-visual-base",
     });
+    clips.unshift({
+      id: "l1l2-visual-base-video",
+      type: "video",
+      content: visualBaseRel,
+      start: 0,
+      duration: totalDuration,
+      mediaDuration: totalDuration,
+      trackIndex: 100,
+      animation: { fadeIn: 0, fadeOut: 0 },
+      hasAudio: false,
+    });
+
+    for (const segment of visualSegments) {
+      if (segment.embedAudio && (await probeHasAudio(segment.inputPath))) {
+        clips.push({
+          id: `l1l2-${segment.id}-audio`,
+          type: "audio",
+          content: segment.relPath,
+          start: segment.start,
+          duration: segment.duration,
+          mediaDuration: segment.duration,
+          trackIndex: EMBEDDED_AUDIO_TRACK,
+        });
+      }
+    }
   }
 
   // Logo spans full composition

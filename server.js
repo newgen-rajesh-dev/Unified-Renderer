@@ -143,7 +143,7 @@ function requireRenderApiKey(req) {
   return null;
 }
 
-export async function buildUniqueOutputPath(strategyName, rendersDir) {
+function defaultOutputFileName(strategyName) {
   const date = new Date();
   const strategy = String(strategyName || 'render').toUpperCase();
   const hours24 = date.getHours();
@@ -154,10 +154,39 @@ export async function buildUniqueOutputPath(strategyName, rendersDir) {
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const year = date.getFullYear();
-  const baseName = `${hours12}-${minutes}-${seconds}${ampm}_${day}-${month}-${year}_${strategy}.mp4`;
+  return `${hours12}-${minutes}-${seconds}${ampm}_${day}-${month}-${year}_${strategy}.mp4`;
+}
+
+function normalizeRequestedFileName(payload) {
+  if (!Object.prototype.hasOwnProperty.call(payload || {}, 'filename')) return null;
+  if (typeof payload.filename !== 'string' || !payload.filename.trim()) {
+    throw new Error('Field "filename" must be a non-empty string when provided');
+  }
+
+  const requested = payload.filename.trim();
+  if (/[<>:"/\\|?*\0-\x1F\x7F]/.test(requested)) {
+    throw new Error('Field "filename" cannot contain path separators, control characters, or these characters: < > : " / \\ | ? *');
+  }
+
+  const fileName = /\.mp4$/i.test(requested)
+    ? requested.replace(/\.mp4$/i, '.mp4')
+    : `${requested}.mp4`;
+  const stem = fileName.replace(/\.mp4$/i, '').trim();
+  if (!stem || stem === '.' || stem === '..') {
+    throw new Error('Field "filename" must include a usable file name before the .mp4 extension');
+  }
+  if (Buffer.byteLength(fileName, 'utf8') > 240) {
+    throw new Error('Field "filename" is too long; use 240 bytes or fewer including the .mp4 extension');
+  }
+
+  return fileName;
+}
+
+export async function buildUniqueOutputPath(strategyName, rendersDir, requestedFileName = null) {
+  const baseName = requestedFileName || defaultOutputFileName(strategyName);
   let suffix = 1;
   while (true) {
-    const fileName = suffix === 1 ? baseName : baseName.replace(/\.mp4$/, `_${suffix}.mp4`);
+    const fileName = suffix === 1 ? baseName : baseName.replace(/\.mp4$/i, `_${suffix}.mp4`);
     const candidate = path.join(rendersDir, fileName);
     if (reservedRenderFileNames.has(fileName)) {
       suffix += 1;
@@ -221,6 +250,13 @@ async function handleRender(req) {
       ? rawPayload.callbackId.trim()
       : null;
 
+  let requestedFileName;
+  try {
+    requestedFileName = normalizeRequestedFileName(rawPayload);
+  } catch (err) {
+    return jsonResponse({ error: err.message }, 422, req);
+  }
+
   const jobId = `${timelineData.id}-${Date.now()}-${randomUUID().slice(0, 8)}`;
   console.log(`[PayloadReceived][${jobId}] JSON payload parsed and accepted`);
   const compositionDir = path.join(JOBS_DIR, jobId);
@@ -244,6 +280,7 @@ async function handleRender(req) {
     outputPath: null,
     plannedOutputPath: null,
     reservedOutputFileName: null,
+    requestedFileName,
     uploadedUrl: null,
     uploadedKey: null,
     mainArtifactPath,
@@ -281,6 +318,7 @@ async function handleRender(req) {
     compositionId: job.compositionId,
     createdAt: job.createdAt,
     statusUrl: job.statusUrl,
+    requestedFileName: job.requestedFileName,
   }, 202, req);
 }
 
@@ -384,6 +422,7 @@ async function deliverCallback(job) {
     status: job.status, // 'complete' | 'failed'
     uploadedUrl: job.uploadedUrl || null,
     uploadedKey: job.uploadedKey || null,
+    fileName: job.reservedOutputFileName || null,
     statusUrl: job.statusUrl || null,
     error: job.error || null,
     completedAt: job.completedAt || null,
@@ -406,7 +445,13 @@ async function deliverCallback(job) {
 }
 
 async function handleRenderDownload(fileName) {
-  const safe = path.basename(fileName);
+  let decodedFileName;
+  try {
+    decodedFileName = decodeURIComponent(fileName);
+  } catch {
+    return jsonResponse({ error: 'Invalid render file name' }, 400);
+  }
+  const safe = path.basename(decodedFileName);
   const absPath = path.join(RENDERS_DIR, safe);
   try {
     const file = Bun.file(absPath);

@@ -3,6 +3,7 @@
   "id": "l1l2-example-job",
   "callbackUrl": "https://your-backend.example.com/api/render/callback",
   "callbackId": "<scriptId>",
+  "filename": "l1l2-training-video.mp4",
   "intro": "optional intro video link",
   "outro": "optional outro video link",
   "logo": "optional logo image link",

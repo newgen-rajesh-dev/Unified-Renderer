@@ -70,7 +70,7 @@ the local `hyperframes render` process. Common production tuning variables are:
 | `PRODUCER_PLAYER_READY_TIMEOUT_MS` | `90000` | Timeout for the HyperFrames player to become ready |
 | `PRODUCER_RENDER_READY_TIMEOUT_MS` | `60000` | Timeout for render readiness checks |
 
-Completed videos are uploaded to S3 under `renders/<jobId>/<fileName>`. Job metadata stores that object key in `uploadedKey` and an AWS virtual-hosted object URL in `uploadedUrl`.
+Completed videos are copied to local `renders/<fileName>` and uploaded to S3 under `renders/<jobId>/<fileName>`. If the payload includes `filename`, that value names the MP4; otherwise the service generates a timestamped name. Job metadata stores the S3 object key in `uploadedKey`, the final file name in `reservedOutputFileName`, and an AWS virtual-hosted object URL in `uploadedUrl`.
 
 ## Security
 
@@ -129,7 +129,7 @@ control, but the API key is the actual authorization check.
 | `POST` | `/render` | Accepts a render job and returns immediately (`202`); renders in the background and POSTs the result to `callbackUrl` |
 | `GET` | `/status/:jobId` | Returns public metadata for one job |
 | `GET` | `/jobs` | Lists persisted jobs, newest first |
-| `GET` | `/renders/:file` | Downloads a rendered MP4 from `renders/` |
+| `GET` | `/renders/:file` | Downloads a rendered MP4 from `renders/`; URL-encode custom file names when needed |
 
 ## Render Lifecycle (async + callback)
 
@@ -139,8 +139,8 @@ render. The flow is:
 1. The caller POSTs a payload that includes a `callbackUrl` (and usually a
    `callbackId` to correlate the result) plus the `RENDER_API_KEY` header.
 2. The server authorizes the request, validates the payload, creates the job,
-   and responds **immediately** with `202` and `{ jobId, status: "rendering", accepted: true, statusUrl }`.
-3. The render runs in the background (prepare assets → render → bg music → upload to S3).
+   and responds **immediately** with `202` and `{ jobId, status: "rendering", accepted: true, statusUrl, requestedFileName }`.
+3. The render runs in the background (prepare assets → render → bg music → copy to `renders/<fileName>` → upload to S3).
 4. When the job reaches a terminal state, the server makes **one** `POST` to the
    caller's `callbackUrl` with the result (no retries). The payload's `type` and
    the `callbackId` are echoed back so the caller can route the result without
@@ -164,6 +164,7 @@ The server POSTs this JSON to `callbackUrl` (`Content-Type: application/json`):
 | `status` | `complete` or `failed` |
 | `uploadedKey` | S3 object key of the final MP4 (use this to build fresh URLs) |
 | `uploadedUrl` | AWS virtual-hosted object URL (only valid if the bucket is public) |
+| `fileName` | Final MP4 file name used locally and in the S3 key; may include a numeric suffix if the requested name already existed |
 | `statusUrl` | The `GET /status/:jobId` URL |
 | `error` | Failure reason when `status` is `failed`, otherwise `null` |
 | `completedAt` / `failedAt` | Terminal timestamp |
@@ -183,6 +184,7 @@ The server accepts one JSON payload per `POST /render` request.
 | `id` | Yes | Stable render/composition id |
 | `callbackUrl` | Yes | URL the server POSTs the render result to when the job finishes (see Render Lifecycle) |
 | `callbackId` | No | Opaque correlation id echoed back in the callback so the caller can route the result (e.g. a project id or script id) |
+| `filename` | No | Requested final MP4 file name for both local `renders/` storage and the S3 key |
 | `intro` | Conditional | Optional intro video link |
 | `outro` | Conditional | Optional outro video link |
 | `titleCard` | Conditional | Optional title card object |
@@ -200,6 +202,8 @@ The server accepts one JSON payload per `POST /render` request.
 - `scenes`
 
 `logo` and `bgMusic` can be added only when the payload has at least one conditional render input. They do not create a video by themselves.
+
+`filename` is optional for both `L1L2` and `L3L4`. When provided, it must be a non-empty string without path separators, control characters, or these characters: `< > : " / \\ | ? *`. The renderer appends `.mp4` when it is missing and normalizes `.MP4` to `.mp4`. If the requested file already exists or is reserved by another running job, the final name receives a numeric suffix such as `_2`; the actual final name is returned as `fileName` in the callback and as `reservedOutputFileName` in job status.
 
 ### Types
 

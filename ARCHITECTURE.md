@@ -15,10 +15,11 @@ with `202`, renders in the background, and POSTs the result to the payload's
    - `L1L2` -> `strategies/l1l2/index.js`
    - `L3L4` -> `strategies/l3l4/index.js`
 5. The strategy normalizes and validates the payload. `server.js` also requires a
-   `callbackUrl` and reads an optional `callbackId` (both from the raw payload,
-   not the normalized timeline); a missing `callbackUrl` is rejected with `422`.
-6. A job record (including `callbackUrl` and `callbackId`) is created in memory and persisted through `common/job-store.js`.
-7. `server.js` responds immediately with `202` and `{ jobId, status: "rendering", accepted: true, statusUrl }`, then runs the pipeline in the background.
+   `callbackUrl` and reads optional `callbackId` and `filename` values (from the
+   raw payload, not the normalized timeline); a missing `callbackUrl` or invalid
+   `filename` is rejected with `422`.
+6. A job record (including `callbackUrl`, `callbackId`, and normalized `requestedFileName`) is created in memory and persisted through `common/job-store.js`.
+7. `server.js` responds immediately with `202` and `{ jobId, status: "rendering", accepted: true, statusUrl, requestedFileName }`, then runs the pipeline in the background.
 8. A workspace is created at `.jobs/<jobId>/`.
 9. Strategy asset preparation downloads/materializes media into `.jobs/<jobId>/assets/`.
 10. The strategy returns a neutral timeline model with `clips`.
@@ -26,10 +27,10 @@ with `202`, renders in the background, and POSTs the result to the payload's
 12. `server.js` writes a generated `hyperframes.json` into the job workspace.
 13. `common/render.js` runs HyperFrames render.
 14. If `bgMusic` exists, `common/media.js` applies it with ffmpeg.
-15. The final MP4 is copied into `renders/`.
+15. The final MP4 is copied into `renders/<fileName>`, where `fileName` is the caller-requested `filename` when provided or a generated timestamped name otherwise.
 16. `common/s3-upload.js` uploads the MP4 to AWS S3 with Bun's native S3 client.
 17. Completed job workspaces are removed.
-18. `deliverCallback` (in `server.js`) makes one `POST` to the job's `callbackUrl` with the terminal result (`status`, `uploadedKey`, `uploadedUrl`, `error`, ...) plus the payload's `type` and `callbackId` echoed back for the caller to route on. Fire-and-forget, no retries; failures are logged. The result remains pollable at `GET /status/:jobId`.
+18. `deliverCallback` (in `server.js`) makes one `POST` to the job's `callbackUrl` with the terminal result (`status`, `uploadedKey`, `uploadedUrl`, `fileName`, `error`, ...) plus the payload's `type` and `callbackId` echoed back for the caller to route on. Fire-and-forget, no retries; failures are logged. The result remains pollable at `GET /status/:jobId`.
 
 ## Entrypoint
 
@@ -41,6 +42,7 @@ It owns:
 - CORS / JSON response helpers
 - `POST /render` API-key authorization through `RENDER_API_KEY`
 - top-level type routing
+- top-level `filename` validation/normalization for final MP4 naming
 - job object creation
 - workspace path creation
 - dynamic job `hyperframes.json` generation
@@ -84,6 +86,8 @@ All payloads require:
   - `scenes`
 
 `logo` and `bgMusic` are optional additions. They cannot be sent alone because they do not create a visual timeline.
+
+`filename` is optional and handled by `server.js` for both strategies. It is normalized to an `.mp4` file name, rejected if it contains path separators/control characters/Windows-reserved filename characters, and stored on the job as `requestedFileName`. `buildUniqueOutputPath` reserves the final local name; if a requested name already exists or is reserved by a running job, the final `reservedOutputFileName` gets a numeric suffix such as `_2`.
 
 `sections` is not accepted. Use `scenes`.
 
@@ -233,7 +237,7 @@ Responsibilities:
 - run the locally installed HyperFrames CLI through Bun's package binary resolution
 - stream render logs into job state
 - apply optional background music
-- copy final output into `renders/`
+- copy final output into `renders/` using the requested file name or generated fallback name
 - upload the MP4
 - mark job complete or failed
 - delete completed job workspaces
@@ -284,7 +288,7 @@ Responsibilities:
 - create the Bun `S3Client`
 - require `AWS_ACCESS_KEY`, `AWS_SECRET_KEY`, and `AWS_S3_BUCKET`
 - require `AWS_S3_REGION`
-- upload completed MP4 files to `renders/<jobId>/<fileName>`
+- upload completed MP4 files to `renders/<jobId>/<fileName>`, where `<fileName>` is the final reserved local output name
 - return AWS S3 URL/key metadata
 
 ## Generated Files

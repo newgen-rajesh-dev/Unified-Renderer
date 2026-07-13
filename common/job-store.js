@@ -14,6 +14,7 @@ const PUBLIC_JOB_FIELDS = [
   'outputPath',
   'plannedOutputPath',
   'reservedOutputFileName',
+  'requestedFileName',
   'uploadedUrl',
   'uploadedKey',
   'mainArtifactPath',

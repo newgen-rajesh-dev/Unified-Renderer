@@ -99,6 +99,7 @@ export function runRender(
           await publishConfig.buildUniqueOutputPath(
             job.strategyName,
             publishConfig.rendersDir,
+            job.requestedFileName || null,
           );
         const finalSourcePath = await applyBgMusicIfNeeded(
           jobId,
