@@ -99,9 +99,8 @@ When `titleCard` is present, both fields are required:
 When `keyLearnings` is present, all fields are required:
 
 - `keyLearnings.vidSrc`
-- `keyLearnings.blue`
-- `keyLearnings.green`
-- `keyLearnings.points`, exactly four non-empty strings
+- `keyLearnings.leadIn`, a non-empty string
+- `keyLearnings.points`, exactly five non-empty strings
 
 ## Strategies
 
@@ -196,11 +195,14 @@ direction per text run. Text overlays load and prefer Noto Sans families for
 Latin, Arabic, Bengali, Devanagari/Hindi/Nepali, and Japanese script coverage,
 with Inter, Geist, and system fonts retained as later fallbacks.
 
-Key learning point animation wraps Latin/simple-script characters in
-`.key-learning-char` spans for the existing reveal effect. For Arabic, Bengali,
-and Devanagari text, the renderer preserves the full escaped text run instead
-of splitting every character, because per-character spans can break shaping and
-combining marks.
+Key learning heading and point copy remain complete escaped text runs and reveal
+left-to-right through a soft CSS mask, preserving shaping and combining marks
+for multilingual text. The animated mask is applied to an inner text span while
+an unmasked outer wrapper produces the drop shadow, allowing the shadow to grow
+continuously with the reveal without clipping or changing layout geometry. After
+the heading reveal finishes, each point runs in sequence: its SVG bullet grows
+past full size and settles back while fading in, and its text follows with the
+masked reveal. Point sequences do not overlap.
 
 This file is shared by all strategies. Strategy files should not generate full HTML directly.
 

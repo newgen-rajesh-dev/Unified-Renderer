@@ -14,13 +14,13 @@
   },
   "keyLearnings": {
     "vidSrc": "optional key learnings background video link",
-    "blue": "KEY",
-    "green": "LEARNINGS",
+    "leadIn": "Key learnings from this video",
     "points": [
       "Don't rush, build trust",
       "Show success, build confidence",
       "Map your plan with client's financial plan",
-      "Ensure followup"
+      "Ensure followup",
+      "Agree on the next action"
     ]
   },
   "scenes": [

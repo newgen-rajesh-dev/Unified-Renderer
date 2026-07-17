@@ -1,8 +1,13 @@
+import { readFileSync } from "fs";
 import { buildOstClipHtml } from "./ost-style.js";
 
+const KEY_LEARNING_POINT_SVG_DATA_URI = `data:image/svg+xml;base64,${Buffer.from(
+  readFileSync(new URL("../assets/key-learning-point.svg", import.meta.url)),
+).toString("base64")}`;
+const KEY_LEARNING_REVEAL_MASK =
+  "linear-gradient(90deg, #000 0%, #000 48%, rgba(0, 0, 0, 0.8) 53%, transparent 65%, transparent 100%)";
 const TEXT_FONT_STACK =
   "'Noto Sans', 'Noto Sans Arabic', 'Noto Sans Bengali', 'Noto Sans Devanagari', 'Noto Sans JP', 'Inter', 'Geist', 'Nirmala UI', 'Yu Gothic', 'Meiryo', 'Segoe UI', Arial, sans-serif";
-const COMPLEX_SCRIPT_PATTERN = /[\p{Script=Arabic}\p{Script=Bengali}\p{Script=Devanagari}]/u;
 
 function camelToKebab(str) {
   return str.replace(/([A-Z])/g, "-$1").toLowerCase();
@@ -27,59 +32,32 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function buildCharacterSpans(value) {
-  const text = String(value);
-  if (COMPLEX_SCRIPT_PATTERN.test(text)) {
-    return escapeHtml(text);
-  }
-
-  return Array.from(text)
-    .map((char) => {
-      const rendered = char === " " ? "&nbsp;" : escapeHtml(char);
-      return `<span class="key-learning-char">${rendered}</span>`;
-    })
-    .join("");
-}
-
 function estimateKeyLearningPointFontSize(points) {
   const maxChars = points.reduce((max, point) => Math.max(max, Array.from(String(point)).length), 0);
-  const availableTextWidth = 1516;
-  const estimatedTextWidth = Math.max(1, maxChars * 31);
-  if (estimatedTextWidth <= availableTextWidth) return 62;
-  return Math.max(46, Math.floor(62 * (availableTextWidth / estimatedTextWidth)));
-}
-
-function estimateKeyLearningTitleFontSize(content) {
-  const titleTexts = [content?.blue ?? "", content?.green ?? ""];
-  const maxChars = titleTexts.reduce((max, text) => Math.max(max, Array.from(String(text)).length), 0);
-  const availableTextWidth = 1171;
-  const estimatedTextWidth = Math.max(1, maxChars * 91);
-  if (estimatedTextWidth <= availableTextWidth) return 166.32;
-  return Math.max(104, Math.floor(166.32 * (availableTextWidth / estimatedTextWidth)));
+  const availableTextWidth = 1337;
+  const estimatedTextWidth = Math.max(1, maxChars * 25.5);
+  if (estimatedTextWidth <= availableTextWidth) return 51;
+  return Math.max(38, Math.floor(51 * (availableTextWidth / estimatedTextWidth)));
 }
 
 function buildKeyLearningsHtml({ baseAttrs, content }) {
   const attrs = baseAttrs.replace('class="clip"', 'class="clip key-learning-screen"');
-  const points = Array.isArray(content?.points) ? content.points.slice(0, 4) : [];
+  const points = Array.isArray(content?.points) ? content.points.slice(0, 5) : [];
   const pointFontSize = estimateKeyLearningPointFontSize(points);
-  const titleFontSize = estimateKeyLearningTitleFontSize(content);
   const pointRows = points
     .map(
       (point, index) => `
         <div class="key-learning-point" data-point-index="${index}">
-          <div class="key-learning-point-text">
-            <span class="key-learning-bullet">&bull;</span>
-            <span class="key-learning-copy" dir="auto">${buildCharacterSpans(point)}</span>
-          </div>
+          <span class="key-learning-bullet" aria-hidden="true"></span>
+          <span class="key-learning-copy" dir="auto"><span class="key-learning-reveal-text">${escapeHtml(point)}</span></span>
         </div>`,
     )
     .join("");
 
   return `<div ${attrs}>
-        <div class="key-learning-frame" style="--key-learning-title-font-size: ${titleFontSize}px; --key-learning-point-font-size: ${pointFontSize}px">
-          <div class="key-learning-title">
-            <div class="key-learning-blue" dir="auto">${escapeHtml(content?.blue ?? "")}</div>
-            <div class="key-learning-green" dir="auto">${escapeHtml(content?.green ?? "")}</div>
+        <div class="key-learning-frame" style="--key-learning-point-font-size: ${pointFontSize}px">
+          <div class="key-learning-head">
+            <div class="key-learning-lead-in" dir="auto"><span class="key-learning-reveal-text">${escapeHtml(content?.leadIn ?? "")}</span></div>
           </div>
           <div class="key-learning-points">
             ${pointRows}
@@ -181,6 +159,7 @@ function buildAnimationScript(clips, compositionId) {
       const {
         id,
         type,
+        content,
         start = 0,
         duration = 5,
         animation = null,
@@ -246,23 +225,39 @@ function buildAnimationScript(clips, compositionId) {
       }
 
       if (type === "keyLearnings") {
-        const pointRevealStart = truncateDuration(start + 1.1);
-        const pointHoldEnd = Math.max(start + duration - fadeOut, pointRevealStart);
-        const pointTweens = [0, 1, 2, 3]
-          .map((pointIndex) => {
-            const pointStart = truncateDuration(pointRevealStart + pointIndex * 0.52);
-            return [
-              `  tl.fromTo("#${id} .key-learning-point[data-point-index='${pointIndex}']", { x: -48, opacity: 0 }, { x: 0, opacity: 1, duration: 0.36, ease: "power3.out" }, ${pointStart});`,
-              `  tl.fromTo("#${id} .key-learning-point[data-point-index='${pointIndex}'] .key-learning-char", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.04, stagger: 0.012, ease: "none" }, ${truncateDuration(pointStart + 0.12)});`,
-            ].join("\n");
-          })
-          .join("\n");
+        const pointCount = Array.isArray(content?.points) ? Math.min(content.points.length, 5) : 0;
+        const revealStart = truncateDuration(start + 0.15);
+        const availableRevealDuration = Math.max(1.35, duration - fadeOut - 0.35);
+        const timingScale = Math.min(1, Math.max(0.45, availableRevealDuration / 4.62));
+        const headingDuration = truncateDuration(0.72 * timingScale);
+        const pointSlotDuration = truncateDuration(0.78 * timingScale);
+        const bulletGrowDuration = truncateDuration(0.34 * timingScale);
+        const bulletSettleDuration = truncateDuration(0.2 * timingScale);
+        const copyDelay = truncateDuration(0.1 * timingScale);
+        const copyDuration = truncateDuration(0.62 * timingScale);
+        const firstPointStart = truncateDuration(revealStart + headingDuration + 0.12 * timingScale);
+        const pointInitialStates = Array.from({ length: pointCount }, (_, pointIndex) => [
+          `  tl.set("#${id} .key-learning-point[data-point-index='${pointIndex}'] .key-learning-bullet", { scale: 0, opacity: 0, transformOrigin: "50% 50%" }, ${start});`,
+          `  tl.set("#${id} .key-learning-point[data-point-index='${pointIndex}'] .key-learning-reveal-text", { opacity: 0, maskImage: "${KEY_LEARNING_REVEAL_MASK}", webkitMaskImage: "${KEY_LEARNING_REVEAL_MASK}", maskPosition: "100% 0%", webkitMaskPosition: "100% 0%" }, ${start});`,
+        ].join("\n")).join("\n");
+        const pointTweens = Array.from({ length: pointCount }, (_, pointIndex) => {
+          const pointStart = truncateDuration(firstPointStart + pointIndex * pointSlotDuration);
+          const settleStart = truncateDuration(pointStart + bulletGrowDuration);
+          const copyStart = truncateDuration(pointStart + copyDelay);
+          return [
+            `  tl.to("#${id} .key-learning-point[data-point-index='${pointIndex}'] .key-learning-bullet", { scale: 1.3, opacity: 1, duration: ${bulletGrowDuration}, ease: "back.out(2.2)" }, ${pointStart});`,
+            `  tl.to("#${id} .key-learning-point[data-point-index='${pointIndex}'] .key-learning-bullet", { scale: 1, duration: ${bulletSettleDuration}, ease: "power2.inOut" }, ${settleStart});`,
+            `  tl.to("#${id} .key-learning-point[data-point-index='${pointIndex}'] .key-learning-reveal-text", { opacity: 1, maskPosition: "0% 0%", webkitMaskPosition: "0% 0%", duration: ${copyDuration}, ease: "power2.out" }, ${copyStart});`,
+          ].join("\n");
+        }).join("\n");
+        const fadeOutStart = truncateDuration(start + duration - fadeOut);
         return [
-          `  tl.fromTo("#${id}", { opacity: 0 }, { opacity: 1, duration: ${fadeIn} }, ${start});`,
-          `  tl.fromTo("#${id} .key-learning-blue", { x: 220, opacity: 0 }, { x: 0, opacity: 1, duration: 0.65, ease: "back.out(1.25)" }, ${truncateDuration(start + 0.15)});`,
-          `  tl.fromTo("#${id} .key-learning-green", { x: -260, opacity: 0 }, { x: 0, opacity: 1, duration: 0.72, ease: "expo.out" }, ${truncateDuration(start + 0.35)});`,
+          `  tl.set("#${id}", { opacity: 1 }, ${start});`,
+          `  tl.set("#${id} .key-learning-lead-in .key-learning-reveal-text", { opacity: 0, maskImage: "${KEY_LEARNING_REVEAL_MASK}", webkitMaskImage: "${KEY_LEARNING_REVEAL_MASK}", maskPosition: "100% 0%", webkitMaskPosition: "100% 0%" }, ${start});`,
+          pointInitialStates,
+          `  tl.to("#${id} .key-learning-lead-in .key-learning-reveal-text", { opacity: 1, maskPosition: "0% 0%", webkitMaskPosition: "0% 0%", duration: ${headingDuration}, ease: "power2.out" }, ${revealStart});`,
           pointTweens,
-          `  tl.to("#${id}", { opacity: 0, duration: ${fadeOut}, ease: "power2.in" }, ${pointHoldEnd});`,
+          `  tl.to("#${id}", { opacity: 0, duration: ${fadeOut}, ease: "power2.in" }, ${fadeOutStart});`,
           `  tl.set("#${id}", { opacity: 0 }, ${truncateDuration(start + duration)});`,
         ].join("\n");
       }
@@ -337,7 +332,7 @@ export function generateCompositionHtml(timelineData) {
     <meta name="viewport" content="width=${width}, height=${height}" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,500;0,700;1,900&family=Noto+Sans+Arabic:wght@400;500;700;900&family=Noto+Sans+Bengali:wght@400;500;700;900&family=Noto+Sans+Devanagari:wght@400;500;700;900&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;800&family=Noto+Sans:ital,wght@0,400;0,500;0,700;1,900&family=Noto+Sans+Arabic:wght@400;500;700;900&family=Noto+Sans+Bengali:wght@400;500;700;900&family=Noto+Sans+Devanagari:wght@400;500;700;900&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -361,97 +356,87 @@ export function generateCompositionHtml(timelineData) {
         pointer-events: none;
       }
       .key-learning-frame {
-        width: 1612px;
+        width: 1536px;
         height: 1080px;
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding: 80px 10px;
-        gap: 36px;
+        padding: 225px 10px 251px;
+        gap: 61px;
       }
-      .key-learning-title {
-        width: 1171px;
-        height: 392px;
+      .key-learning-head {
+        width: 1516px;
+        height: 77px;
+        flex: 0 0 77px;
         display: flex;
         flex-direction: column;
+        justify-content: center;
         align-items: flex-start;
+        gap: 10px;
       }
-      .key-learning-blue,
-      .key-learning-green {
-        font-family: ${TEXT_FONT_STACK};
-        font-style: italic;
-        font-weight: 900;
-        font-size: var(--key-learning-title-font-size, 166.32px);
-        line-height: 196px;
-        letter-spacing: 0;
-        text-transform: uppercase;
-        font-variation-settings: 'slnt' -10;
+      .key-learning-lead-in {
+        width: 100%;
+        color: #ffffff;
+        font-family: 'Inter', ${TEXT_FONT_STACK};
+        font-size: 64px;
+        font-style: normal;
+        font-weight: 800;
+        line-height: 77px;
+        white-space: nowrap;
         unicode-bidi: plaintext;
-        will-change: transform, opacity;
-      }
-      .key-learning-blue {
-        width: 1171px;
-        height: 196px;
-        color: #0092D9;
-        text-shadow: 4.32px 4.32px 0 #013B58, 7.56px 10.8px 0 #000000;
-      }
-      .key-learning-green {
-        width: 1171px;
-        height: 196px;
-        color: #A4CD4E;
-        text-shadow: 4.32px 4.32px 0 #3F4C1B, 7.56px 10.8px 0 #000000;
+        filter: drop-shadow(4px 5px 6.1px rgba(0, 0, 0, 0.69));
       }
       .key-learning-points {
-        width: 1592px;
-        min-width: 1338px;
-        height: 492px;
+        width: 1516px;
+        height: 466px;
+        flex: 1 0 466px;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
         align-items: center;
-        padding: 10px 16px;
+        padding: 0 49px;
         gap: 10px;
       }
       .key-learning-point {
-        width: 1560px;
-        height: 75px;
-        flex: 0 0 75px;
+        width: 100%;
+        height: 62px;
+        flex: 0 0 62px;
         display: flex;
         flex-direction: row;
         align-items: center;
-        padding: 0 22px;
-        gap: 10px;
-        background: #FFFFFF;
-        box-shadow: 0 7px 0 #328EFE;
-        overflow: hidden;
-        will-change: transform, opacity;
-      }
-      .key-learning-point-text {
-        width: 1516px;
-        height: 75px;
-        display: flex;
-        align-items: center;
-        gap: 28px;
         padding: 0;
-        font-family: ${TEXT_FONT_STACK};
+        gap: 47px;
+        color: #ffffff;
+        font-family: 'Inter', ${TEXT_FONT_STACK};
+        font-size: var(--key-learning-point-font-size, 51px);
         font-style: normal;
-        font-weight: 400;
-        font-size: var(--key-learning-point-font-size, 62px);
-        line-height: 75px;
-        color: #000000;
+        font-weight: 500;
+        line-height: 62px;
         white-space: nowrap;
         unicode-bidi: plaintext;
+        will-change: transform, opacity;
       }
       .key-learning-bullet {
-        flex: 0 0 auto;
+        width: 34px;
+        height: 34px;
+        flex: 0 0 34px;
+        background: url("${KEY_LEARNING_POINT_SVG_DATA_URI}") center / contain no-repeat;
+        will-change: transform, opacity;
       }
       .key-learning-copy {
         min-width: 0;
         overflow: visible;
+        filter: drop-shadow(4px 5px 6.1px rgba(0, 0, 0, 0.69));
       }
-      .key-learning-char {
+      .key-learning-reveal-text {
         display: inline-block;
-        white-space: pre;
+        -webkit-mask-image: ${KEY_LEARNING_REVEAL_MASK};
+        -webkit-mask-size: 220% 100%;
+        -webkit-mask-repeat: no-repeat;
+        mask-image: ${KEY_LEARNING_REVEAL_MASK};
+        mask-size: 220% 100%;
+        mask-repeat: no-repeat;
+        will-change: opacity, mask-position;
       }
     </style>
   </head>

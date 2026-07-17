@@ -59,18 +59,18 @@ function parseL1L2(payload) {
     throw new Error('Invalid "titleCard": provide both "vidSrc" and "titleText"');
   }
   if (hasKeyLearnings && (typeof payload.keyLearnings !== "object" || Array.isArray(payload.keyLearnings))) {
-    throw new Error('Invalid "keyLearnings": expected an object with "vidSrc", "blue", "green", and four "points"');
+    throw new Error('Invalid "keyLearnings": expected an object with "vidSrc", "leadIn", and five "points"');
   }
   if (
     hasKeyLearnings &&
     (!payload.keyLearnings.vidSrc ||
-      !payload.keyLearnings.blue ||
-      !payload.keyLearnings.green ||
+      typeof payload.keyLearnings.leadIn !== "string" ||
+      !payload.keyLearnings.leadIn.trim() ||
       !Array.isArray(payload.keyLearnings.points) ||
-      payload.keyLearnings.points.length !== 4 ||
+      payload.keyLearnings.points.length !== 5 ||
       payload.keyLearnings.points.some((point) => typeof point !== "string" || !point.trim()))
   ) {
-    throw new Error('Invalid "keyLearnings": provide "vidSrc", "blue", "green", and exactly four non-empty string "points"');
+    throw new Error('Invalid "keyLearnings": provide "vidSrc", "leadIn", and exactly five non-empty string "points"');
   }
   if (hasScenesKey && scenes.length === 0) {
     throw new Error('Invalid "scenes": expected a non-empty array when provided');
@@ -110,8 +110,7 @@ function parseL1L2(payload) {
     keyLearnings: payload.keyLearnings
       ? {
           vidSrc: String(payload.keyLearnings.vidSrc),
-          blue: String(payload.keyLearnings.blue),
-          green: String(payload.keyLearnings.green),
+          leadIn: String(payload.keyLearnings.leadIn),
           points: payload.keyLearnings.points.map((point) => String(point).trim()),
         }
       : null,
